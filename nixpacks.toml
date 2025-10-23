@@ -1,0 +1,9 @@
+[phases.setup]
+nixPkgs = ['php82', 'php82Packages.composer', 'postgresql']
+
+[phases.install]
+cmds = ['echo "PHP 8.2 e PostgreSQL instalados com sucesso!"']
+
+[start]
+cmd = 'php -S 0.0.0.0:$PORT -t .'
+
