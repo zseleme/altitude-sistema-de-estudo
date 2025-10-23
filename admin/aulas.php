@@ -1,0 +1,679 @@
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/../includes/auth.php';
+requireAdmin();
+
+$db = Database::getInstance();
+$success = false;
+$error = '';
+$editingAula = null;
+
+// Processar edição
+if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
+    $aulaId = (int)$_GET['edit'];
+    $editingAula = $db->fetchOne("SELECT * FROM aulas WHERE id = ?", [$aulaId]);
+    if (!$editingAula) {
+        $error = 'Aula não encontrada';
+    } else {
+        // Buscar materiais complementares se existirem
+        $materiais = $db->fetchAll("SELECT * FROM materiais_complementares WHERE aula_id = ? AND ativo = TRUE ORDER BY id", [$aulaId]);
+        if (!empty($materiais)) {
+            // Padronizar nome da coluna para cada material
+            foreach ($materiais as &$material) {
+                $material['url'] = $material['url_arquivo'];
+            }
+            $editingAula['materiais'] = $materiais;
+        }
+    }
+}
+
+// Processar formulário (criar ou editar)
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $titulo = trim($_POST['titulo'] ?? '');
+    $descricao = trim($_POST['descricao'] ?? '');
+    $urlVideo = trim($_POST['url_video'] ?? '');
+    $ordem = (int)($_POST['ordem'] ?? 1);
+    $cursoId = (int)($_POST['curso_id'] ?? 0);
+    $duracaoMinutos = (int)($_POST['duracao_minutos'] ?? 30);
+    $aulaId = isset($_POST['aula_id']) ? (int)$_POST['aula_id'] : null;
+    
+    // Dados dos materiais (opcional)
+    $materiais = $_POST['materiais'] ?? [];
+    $materiaisValidos = [];
+    
+    // Validar materiais
+    foreach ($materiais as $material) {
+        $titulo = trim($material['titulo'] ?? '');
+        $descricao = trim($material['descricao'] ?? '');
+        $url = trim($material['url'] ?? '');
+        $tipo = trim($material['tipo'] ?? '');
+        
+        if (!empty($titulo) && !empty($url) && !empty($tipo)) {
+            $materiaisValidos[] = [
+                'titulo' => $titulo,
+                'descricao' => $descricao,
+                'url' => $url,
+                'tipo' => $tipo
+            ];
+        }
+    }
+    
+    if (empty($titulo) || empty($urlVideo) || !$cursoId) {
+        $error = 'Título, URL do vídeo e curso são obrigatórios';
+    } else {
+        try {
+            $db->beginTransaction();
+            
+            if ($aulaId) {
+                // Editar aula existente
+                $db->execute(
+                    "UPDATE aulas SET titulo = ?, descricao = ?, url_video = ?, ordem = ?, curso_id = ?, duracao_minutos = ? WHERE id = ?",
+                    [$titulo, $descricao, $urlVideo, $ordem, $cursoId, $duracaoMinutos, $aulaId]
+                );
+                $success = 'Aula atualizada com sucesso!';
+            } else {
+                // Criar nova aula
+                $db->execute(
+                    "INSERT INTO aulas (titulo, descricao, url_video, ordem, curso_id, duracao_minutos, ativo) VALUES (?, ?, ?, ?, ?, ?, TRUE)",
+                    [$titulo, $descricao, $urlVideo, $ordem, $cursoId, $duracaoMinutos]
+                );
+                $aulaId = $db->lastInsertId();
+                $success = 'Aula criada com sucesso!';
+            }
+            
+            // Processar materiais se fornecidos
+            if (!empty($materiaisValidos) && $aulaId) {
+                // Remover materiais existentes
+                $db->execute("DELETE FROM materiais_complementares WHERE aula_id = ?", [$aulaId]);
+                
+                // Inserir novos materiais
+                foreach ($materiaisValidos as $material) {
+                    $db->execute(
+                        "INSERT INTO materiais_complementares (titulo, descricao, url_arquivo, tipo, aula_id, ativo) VALUES (?, ?, ?, ?, ?, TRUE)",
+                        [$material['titulo'], $material['descricao'], $material['url'], $material['tipo'], $aulaId]
+                    );
+                }
+                $success .= ' ' . count($materiaisValidos) . ' material(is) complementar(es) adicionado(s)!';
+            }
+            
+            $db->commit();
+            $editingAula = null; // Limpar edição
+        } catch (Exception $e) {
+            $db->rollback();
+            $error = 'Erro ao salvar aula: ' . $e->getMessage();
+        }
+    }
+}
+
+// Processar exclusão
+if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+    $aulaId = (int)$_GET['delete'];
+    try {
+        $db->execute("UPDATE aulas SET ativo = FALSE WHERE id = ?", [$aulaId]);
+        $success = 'Aula excluída com sucesso!';
+    } catch (Exception $e) {
+        $error = 'Erro ao excluir aula: ' . $e->getMessage();
+    }
+}
+
+// Buscar aulas
+$cursoFiltro = isset($_GET['curso']) ? (int)$_GET['curso'] : null;
+$whereClause = "WHERE a.ativo = TRUE";
+$params = [];
+
+if ($cursoFiltro) {
+    $whereClause .= " AND a.curso_id = ?";
+    $params[] = $cursoFiltro;
+}
+
+$aulas = $db->fetchAll("
+    SELECT a.*, c.titulo as curso_titulo, cat.nome as categoria_nome,
+           COUNT(m.id) as total_materiais
+    FROM aulas a
+    JOIN cursos c ON a.curso_id = c.id
+    JOIN categorias cat ON c.categoria_id = cat.id
+    LEFT JOIN materiais_complementares m ON a.id = m.aula_id AND m.ativo = TRUE
+    $whereClause
+    GROUP BY a.id, c.titulo, cat.nome
+    ORDER BY c.titulo, a.ordem, a.titulo
+", $params);
+
+$cursos = $db->fetchAll("SELECT * FROM cursos WHERE ativo = TRUE ORDER BY titulo");
+
+$content = '
+                <!-- Breadcrumb -->
+                <nav class="flex mb-6" aria-label="Breadcrumb">
+                    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                        <li class="inline-flex items-center">
+                            <a href="/home.php" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600">
+                                <i class="fas fa-home mr-2"></i>
+                                Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <div class="flex items-center">
+                                <i class="fas fa-chevron-right text-gray-400 mx-1"></i>
+                                <span class="ml-1 text-sm font-medium text-gray-500 md:ml-2">Administração</span>
+            </div>
+                        </li>
+                        <li>
+                            <div class="flex items-center">
+                                <i class="fas fa-chevron-right text-gray-400 mx-1"></i>
+                                <span class="ml-1 text-sm font-medium text-gray-500 md:ml-2">Aulas</span>
+        </div>
+                        </li>
+                    </ol>
+                </nav>
+
+                <!-- Page Header -->
+                <div class="flex items-center justify-between mb-8">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">Aulas</h1>
+                        <p class="text-gray-600 mt-2">Gerencie as aulas dos cursos</p>
+                    </div>
+                    <button onclick="toggleForm()" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-plus mr-2"></i>
+                        Nova Aula
+                    </button>
+                </div>
+
+                <!-- Success/Error Messages -->
+                ' . ($success ? '
+                <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div class="flex">
+                        <i class="fas fa-check-circle text-green-400 mr-2 mt-0.5"></i>
+                        <p class="text-green-700 text-sm">' . htmlspecialchars($success) . '</p>
+                    </div>
+                </div>' : '') . '
+                
+                ' . ($error ? '
+                <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div class="flex">
+                        <i class="fas fa-exclamation-circle text-red-400 mr-2 mt-0.5"></i>
+                        <p class="text-red-700 text-sm">' . htmlspecialchars($error) . '</p>
+                    </div>
+                </div>' : '') . '
+
+                <!-- Add/Edit Lesson Form -->
+                <div id="lessonForm" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8" style="display: ' . ($editingAula ? 'block' : 'none') . ';">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">
+                        <i class="fas fa-' . ($editingAula ? 'edit' : 'plus') . ' mr-2 text-blue-600"></i>
+                        ' . ($editingAula ? 'Editar Aula' : 'Nova Aula') . '
+                    </h2>
+                    
+                    <form method="POST" class="space-y-4">
+                        ' . ($editingAula ? '<input type="hidden" name="aula_id" value="' . $editingAula['id'] . '">' : '') . '
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Título da Aula
+                                </label>
+                                <input type="text" 
+                                       name="titulo" 
+                                       value="' . ($editingAula ? htmlspecialchars($editingAula['titulo']) : '') . '"
+                                       required
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                       placeholder="Digite o título da aula">
+                    </div>
+                    
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Curso
+                                </label>
+                                <select name="curso_id" 
+                                        required
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
+                                    <option value="">Selecione um curso</option>
+                                    ' . implode('', array_map(function($curso) use ($editingAula) {
+                                        $selected = $editingAula && $editingAula['curso_id'] == $curso['id'] ? 'selected' : '';
+                                        return '<option value="' . $curso['id'] . '" ' . $selected . '>' . htmlspecialchars($curso['titulo']) . '</option>';
+                                    }, $cursos)) . '
+                                </select>
+                        </div>
+                    </div>
+                    
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    URL do Vídeo
+                                </label>
+                                <input type="url" 
+                                       name="url_video" 
+                                       value="' . ($editingAula ? htmlspecialchars($editingAula['url_video']) : '') . '"
+                                       required
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                       placeholder="https://www.youtube.com/... ou https://dropbox.com/...">
+                                <p class="mt-2 text-xs text-gray-500">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Suportado: <strong>YouTube</strong>, <strong>Vimeo</strong>, <strong>OneDrive</strong> e <strong>Dropbox</strong>
+                                </p>
+                                <p class="mt-1 text-xs text-gray-400">
+                                    • YouTube: https://www.youtube.com/watch?v=... ou https://youtu.be/...<br>
+                                    • Vimeo: https://vimeo.com/...<br>
+                                    • OneDrive: https://1drv.ms/v/...<br>
+                                    • Dropbox: https://dropbox.com/... ou https://dl.dropboxusercontent.com/...
+                                </p>
+                    </div>
+                    
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Ordem
+                                </label>
+                                <input type="number" 
+                                       name="ordem" 
+                                       value="' . ($editingAula ? $editingAula['ordem'] : '1') . '"
+                                       min="1"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                       placeholder="1">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Duração (minutos)
+                                </label>
+                                <input type="number" 
+                                       name="duracao_minutos" 
+                                       value="' . ($editingAula ? ($editingAula['duracao_minutos'] ?? 30) : '30') . '"
+                                       min="1"
+                                       max="300"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                       placeholder="30">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Descrição
+                            </label>
+                            <textarea name="descricao" 
+                                      rows="4"
+                                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                      placeholder="Descreva o conteúdo da aula">' . ($editingAula ? htmlspecialchars($editingAula['descricao']) : '') . '</textarea>
+                </div>
+                
+                        <!-- Materiais Complementares (Opcional) -->
+                        <div class="border-t border-gray-200 pt-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="text-lg font-semibold text-gray-900">
+                                    <i class="fas fa-paperclip mr-2 text-green-600"></i>
+                                    Materiais Complementares (Opcional)
+                                </h4>
+                                <button type="button" 
+                                        onclick="addMaterial()"
+                                        class="inline-flex items-center px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
+                                    <i class="fas fa-plus mr-2"></i>
+                                    Adicionar Material
+                        </button>
+                    </div>
+                            
+                            <div id="materiais-container">
+                                <!-- Materiais existentes serão carregados aqui -->
+                                </div>
+                                
+                            <div class="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                                <div class="flex items-start">
+                                    <i class="fas fa-info-circle text-green-600 mt-1 mr-2"></i>
+                                    <div class="text-sm text-green-700">
+                                        <p class="font-medium mb-1">Materiais Complementares</p>
+                                        <p>Adicione quantos materiais desejar: PDFs, documentos, links ou outros recursos que complementem a aula. Clique em "Adicionar Material" para incluir mais materiais.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                        <div class="flex items-center space-x-4">
+                            <button type="submit" 
+                                    class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                                <i class="fas fa-save mr-2"></i>
+                                Salvar
+                            </button>
+                            
+                            <button type="button" 
+                                    onclick="toggleForm()"
+                                    class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
+                                <i class="fas fa-times mr-2"></i>
+                                Cancelar
+                                        </button>
+                            </div>
+                        </form>
+                </div>
+
+                <!-- Filter by Course -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                        <i class="fas fa-filter mr-2 text-blue-600"></i>
+                        Filtrar por Curso
+                    </h3>
+                    
+                    <!-- Search Input -->
+                    <div class="mb-4 relative">
+                        <div class="relative">
+                            <input type="text" 
+                                   id="curso-search" 
+                                   placeholder="Pesquisar curso... (Ctrl+K)" 
+                                   class="w-full px-4 py-2.5 pl-10 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-search text-gray-400"></i>
+                            </div>
+                            <button id="clear-search" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 hidden">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Course Tags -->
+                    <div id="curso-tags" class="flex flex-wrap gap-2">
+                        <a href="?" 
+                           data-curso-id="" 
+                           data-curso-nome="Todos os Cursos"
+                           class="curso-tag inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ' . (!$cursoFiltro ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200') . ' transition-colors">
+                            Todos os Cursos
+                        </a>
+                        ' . implode('', array_map(function($curso) use ($cursoFiltro) {
+                            $active = $cursoFiltro == $curso['id'] ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700 hover:bg-gray-200';
+                            return '<a href="?curso=' . $curso['id'] . '" 
+                                       data-curso-id="' . $curso['id'] . '" 
+                                       data-curso-nome="' . htmlspecialchars($curso['titulo']) . '"
+                                       class="curso-tag inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ' . $active . ' transition-colors">' . 
+                                       htmlspecialchars($curso['titulo']) . '</a>';
+                        }, $cursos)) . '
+                    </div>
+                    
+                    <!-- No Results Message -->
+                    <div id="no-results" class="hidden mt-4 p-4 bg-gray-50 rounded-lg text-center">
+                        <i class="fas fa-search text-gray-400 text-2xl mb-2"></i>
+                        <p class="text-sm text-gray-600">Nenhum curso encontrado</p>
+                    </div>
+                </div>
+                
+                <script>
+                // Filtro de busca de cursos com autocomplete
+                (function() {
+                    const searchInput = document.getElementById("curso-search");
+                    const clearButton = document.getElementById("clear-search");
+                    const cursoTags = document.querySelectorAll(".curso-tag");
+                    const noResults = document.getElementById("no-results");
+                    
+                    if (!searchInput) return;
+                    
+                    // Função para normalizar texto (remover acentos)
+                    function normalizeText(text) {
+                        return text.toLowerCase()
+                            .normalize("NFD")
+                            .replace(/[\u0300-\u036f]/g, "");
+                    }
+                    
+                    // Função para filtrar cursos
+                    function filterCursos() {
+                        const searchTerm = normalizeText(searchInput.value.trim());
+                        let visibleCount = 0;
+                        
+                        cursoTags.forEach(tag => {
+                            const cursoNome = normalizeText(tag.getAttribute("data-curso-nome") || "");
+                            
+                            if (searchTerm === "" || cursoNome.includes(searchTerm)) {
+                                tag.classList.remove("hidden");
+                                visibleCount++;
+                            } else {
+                                tag.classList.add("hidden");
+                            }
+                        });
+                        
+                        // Mostrar/ocultar mensagem de "nenhum resultado"
+                        if (visibleCount === 0) {
+                            noResults.classList.remove("hidden");
+                        } else {
+                            noResults.classList.add("hidden");
+                        }
+                        
+                        // Mostrar/ocultar botão de limpar
+                        if (searchInput.value.trim() !== "") {
+                            clearButton.classList.remove("hidden");
+                        } else {
+                            clearButton.classList.add("hidden");
+                        }
+                    }
+                    
+                    // Event listeners
+                    searchInput.addEventListener("input", filterCursos);
+                    
+                    searchInput.addEventListener("keydown", function(e) {
+                        // Enter - seleciona o primeiro curso visível
+                        if (e.key === "Enter") {
+                            e.preventDefault();
+                            const firstVisible = Array.from(cursoTags).find(tag => !tag.classList.contains("hidden"));
+                            if (firstVisible) {
+                                firstVisible.click();
+                            }
+                        }
+                        
+                        // Escape - limpa o campo
+                        if (e.key === "Escape") {
+                            searchInput.value = "";
+                            filterCursos();
+                            searchInput.blur();
+                        }
+                    });
+                    
+                    clearButton.addEventListener("click", function() {
+                        searchInput.value = "";
+                        filterCursos();
+                        searchInput.focus();
+                    });
+                    
+                    // Auto-focus no input com atalho Ctrl+K ou Cmd+K
+                    document.addEventListener("keydown", function(e) {
+                        if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+                            e.preventDefault();
+                            searchInput.focus();
+                            searchInput.select();
+                        }
+                    });
+                })();
+                </script>
+                
+                <!-- Lessons List -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                    <div class="p-6 border-b border-gray-200">
+                        <h2 class="text-xl font-semibold text-gray-900">
+                            <i class="fas fa-list mr-2 text-blue-600"></i>
+                            Lista de Aulas
+                        </h2>
+                    </div>
+                    
+                    ' . (empty($aulas) ? '
+                    <div class="p-8 text-center">
+                        <i class="fas fa-video text-4xl text-gray-300 mb-4"></i>
+                        <h3 class="text-lg font-semibold text-gray-600 mb-2">Nenhuma aula cadastrada</h3>
+                        <p class="text-gray-500">Comece criando sua primeira aula.</p>
+                    </div>' : '
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Aula
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Curso
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Ordem
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Data de Criação
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Ações
+                                    </th>
+                                    </tr>
+                                </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ' . implode('', array_map(function($aula) {
+                                    return '
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-start">
+                                            <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                                                <i class="fas fa-play text-red-600"></i>
+                                        </div>
+                                            <div class="min-w-0 flex-1">
+                                                <div class="flex items-center flex-wrap gap-2">
+                                                    <div class="text-sm font-medium text-gray-900 break-words">' . htmlspecialchars($aula['titulo']) . '</div>
+                                                    ' . ($aula['total_materiais'] > 0 ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 whitespace-nowrap"><i class="fas fa-paperclip mr-1"></i>' . $aula['total_materiais'] . ' Material(is)</span>' : '') . '
+                                                </div>
+                                                ' . ($aula['descricao'] ? '<div class="text-sm text-gray-500 truncate max-w-md mt-1">' . htmlspecialchars(substr($aula['descricao'], 0, 80)) . (strlen($aula['descricao']) > 80 ? '...' : '') . '</div>' : '') . '
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div>
+                                            <div class="text-sm font-medium text-gray-900">' . htmlspecialchars($aula['curso_titulo']) . '</div>
+                                            <div class="text-sm text-gray-500">' . htmlspecialchars($aula['categoria_nome']) . '</div>
+                                            </div>
+                                        </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                            ' . $aula['ordem'] . '
+                                        </span>
+                                        </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        ' . date('d/m/Y H:i', strtotime($aula['data_criacao'])) . '
+                                        </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <div class="flex items-center space-x-2">
+                                            <a href="/aula.php?id=' . $aula['id'] . '" 
+                                               class="text-blue-600 hover:text-blue-900 transition-colors" title="Visualizar">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="?edit=' . $aula['id'] . '" 
+                                               class="text-yellow-600 hover:text-yellow-900 transition-colors" title="Editar">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            <a href="?delete=' . $aula['id'] . '" 
+                                               onclick="return confirm(\'Tem certeza que deseja excluir esta aula?\')"
+                                               class="text-red-600 hover:text-red-900 transition-colors" title="Excluir">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                            </div>
+                                        </td>
+                                </tr>';
+                                }, $aulas)) . '
+                                </tbody>
+                            </table>
+                    </div>') . '
+    </div>
+
+    <script>
+    let materialIndex = 0;
+
+    function toggleForm() {
+        const form = document.getElementById("lessonForm");
+        form.style.display = form.style.display === "none" ? "block" : "none";
+        
+        // Limpar formulário se não estiver editando
+        if (form.style.display === "block" && !' . ($editingAula ? 'true' : 'false') . ') {
+            form.querySelector("form").reset();
+            // Limpar materiais dinâmicos
+            document.getElementById("materiais-container").innerHTML = "";
+            materialIndex = 0;
+        }
+    }
+    
+    function addMaterial(material = null) {
+        const container = document.getElementById("materiais-container");
+        const materialDiv = document.createElement("div");
+        materialDiv.className = "material-item border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50";
+        materialDiv.id = "material-" + materialIndex;
+        
+        materialDiv.innerHTML = `
+            <div class="flex items-center justify-between mb-4">
+                <h5 class="text-md font-medium text-gray-900">
+                    <i class="fas fa-paperclip mr-2 text-green-600"></i>
+                    Material ${materialIndex + 1}
+                </h5>
+                <button type="button" 
+                        onclick="removeMaterial(${materialIndex})"
+                        class="text-red-600 hover:text-red-800 transition-colors">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Título do Material
+                    </label>
+                    <input type="text" 
+                           name="materiais[${materialIndex}][titulo]" 
+                           value="${material ? material.titulo : ""}"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                           placeholder="Ex: Slides da Aula, Exercícios, etc.">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Tipo do Material
+                    </label>
+                    <select name="materiais[${materialIndex}][tipo]" 
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors">
+                        <option value="">Selecione o tipo</option>
+                        <option value="pdf" ${material && material.tipo === "pdf" ? "selected" : ""}>PDF</option>
+                        <option value="doc" ${material && material.tipo === "doc" ? "selected" : ""}>Documento (DOC)</option>
+                        <option value="ppt" ${material && material.tipo === "ppt" ? "selected" : ""}>Apresentação (PPT)</option>
+                        <option value="video" ${material && material.tipo === "video" ? "selected" : ""}>Vídeo</option>
+                        <option value="link" ${material && material.tipo === "link" ? "selected" : ""}>Link</option>
+                        <option value="imagem" ${material && material.tipo === "imagem" ? "selected" : ""}>Imagem</option>
+                        <option value="outro" ${material && material.tipo === "outro" ? "selected" : ""}>Outro</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    URL do Material
+                </label>
+                <input type="url" 
+                       name="materiais[${materialIndex}][url]" 
+                       value="${material ? material.url : ""}"
+                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                       placeholder="https://exemplo.com/material.pdf">
+            </div>
+            
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Descrição do Material
+                </label>
+                <textarea name="materiais[${materialIndex}][descricao]" 
+                          rows="3"
+                          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+                          placeholder="Descreva o material complementar">${material ? material.descricao : ""}</textarea>
+            </div>
+        `;
+        
+        container.appendChild(materialDiv);
+        materialIndex++;
+    }
+    
+    function removeMaterial(index) {
+        const materialDiv = document.getElementById("material-" + index);
+        if (materialDiv) {
+            materialDiv.remove();
+        }
+    }
+    
+    // Carregar materiais existentes se estiver editando
+    ' . ($editingAula && isset($editingAula['materiais']) ? '
+    document.addEventListener("DOMContentLoaded", function() {
+        ' . json_encode($editingAula['materiais']) . '.forEach(function(material) {
+            addMaterial(material);
+        });
+    });' : '') . '
+    </script>';
+
+require_once __DIR__ . '/../includes/layout.php';
+renderLayout('Aulas - Administração', $content, true, true);
+?>

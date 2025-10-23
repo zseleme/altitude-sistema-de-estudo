@@ -1,0 +1,51 @@
+# Arquivos de configuração sensíveis
+config/database.php
+.env
+
+# Banco de dados
+*.db
+*.sqlite
+*.sql
+
+# Arquivos temporários e logs
+*.log
+*.tmp
+*.cache
+/temp/
+/tmp/
+
+# Uploads e assets gerados
+/uploads/*
+!/uploads/.gitkeep
+/assets/uploads/*
+!/assets/uploads/.gitkeep
+
+# Dependências (se usar Composer futuramente)
+/vendor/
+
+# IDE e editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Sistema operacional
+Thumbs.db
+.DS_Store
+
+# Arquivos de backup
+*.bak
+*.backup
+*~
+
+# Arquivos específicos do projeto
+estudos.db
+/config/estudos.db
+
+# Node modules (se usar npm/yarn)
+node_modules/
+package-lock.json
+yarn.lock
+
