@@ -2,13 +2,8 @@
 /**
  * Helper para integração com APIs de IA
  * Suporta: OpenAI, Google Gemini, Groq
+ * Configurações lidas do banco de dados
  */
-
-// Verificar se a configuração existe
-$aiConfigPath = __DIR__ . '/../config/openai.php';
-if (file_exists($aiConfigPath)) {
-    require_once $aiConfigPath;
-}
 
 class AIHelper {
     private $provider;
@@ -18,38 +13,83 @@ class AIHelper {
     private $maxTokens;
 
     public function __construct() {
-        $this->provider = defined('AI_PROVIDER') ? AI_PROVIDER : 'gemini';
-        $this->temperature = defined('AI_TEMPERATURE') ? AI_TEMPERATURE : 0.3;
-        $this->maxTokens = defined('AI_MAX_TOKENS') ? AI_MAX_TOKENS : 2000;
+        // Carregar configurações do banco de dados
+        $configs = $this->loadConfigsFromDatabase();
+
+        $this->provider = $configs['ai_provider'] ?? 'gemini';
+        $this->temperature = floatval($configs['ai_temperature'] ?? 0.3);
+        $this->maxTokens = intval($configs['ai_max_tokens'] ?? 2000);
 
         // Configurar baseado no provedor
         switch ($this->provider) {
             case 'openai':
-                if (!defined('OPENAI_API_KEY') || OPENAI_API_KEY === 'sua-chave-openai-aqui') {
+                $this->apiKey = $configs['openai_api_key'] ?? '';
+                $this->model = $configs['openai_model'] ?? 'gpt-4o-mini';
+                if (empty($this->apiKey)) {
                     throw new Exception('Chave da API OpenAI não configurada');
                 }
-                $this->apiKey = OPENAI_API_KEY;
-                $this->model = defined('OPENAI_MODEL') ? OPENAI_MODEL : 'gpt-4o-mini';
                 break;
 
             case 'gemini':
-                if (!defined('GEMINI_API_KEY') || GEMINI_API_KEY === 'sua-chave-gemini-aqui') {
+                $this->apiKey = $configs['gemini_api_key'] ?? '';
+                $this->model = $configs['gemini_model'] ?? 'gemini-1.5-flash';
+                if (empty($this->apiKey)) {
                     throw new Exception('Chave da API Gemini não configurada');
                 }
-                $this->apiKey = GEMINI_API_KEY;
-                $this->model = defined('GEMINI_MODEL') ? GEMINI_MODEL : 'gemini-1.5-flash';
                 break;
 
             case 'groq':
-                if (!defined('GROQ_API_KEY') || GROQ_API_KEY === 'sua-chave-groq-aqui') {
+                $this->apiKey = $configs['groq_api_key'] ?? '';
+                $this->model = $configs['groq_model'] ?? 'llama-3.1-8b-instant';
+                if (empty($this->apiKey)) {
                     throw new Exception('Chave da API Groq não configurada');
                 }
-                $this->apiKey = GROQ_API_KEY;
-                $this->model = defined('GROQ_MODEL') ? GROQ_MODEL : 'llama-3.1-8b-instant';
                 break;
 
             default:
                 throw new Exception('Provedor de IA inválido: ' . $this->provider);
+        }
+    }
+
+    /**
+     * Carrega configurações do banco de dados
+     */
+    private function loadConfigsFromDatabase() {
+        try {
+            require_once __DIR__ . '/../config/database.php';
+            $db = Database::getInstance();
+
+            $configsRaw = $db->fetchAll("
+                SELECT chave, valor
+                FROM configuracoes
+                WHERE chave LIKE 'ai_%' OR chave LIKE '%_api_key' OR chave LIKE '%_model'
+            ");
+
+            $configs = [];
+            foreach ($configsRaw as $config) {
+                $configs[$config['chave']] = $config['valor'];
+            }
+
+            return $configs;
+        } catch (Exception $e) {
+            // Se falhar, tentar arquivo de configuração legado
+            $aiConfigPath = __DIR__ . '/../config/openai.php';
+            if (file_exists($aiConfigPath)) {
+                require_once $aiConfigPath;
+                return [
+                    'ai_provider' => defined('AI_PROVIDER') ? AI_PROVIDER : 'gemini',
+                    'openai_api_key' => defined('OPENAI_API_KEY') ? OPENAI_API_KEY : '',
+                    'openai_model' => defined('OPENAI_MODEL') ? OPENAI_MODEL : 'gpt-4o-mini',
+                    'gemini_api_key' => defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '',
+                    'gemini_model' => defined('GEMINI_MODEL') ? GEMINI_MODEL : 'gemini-1.5-flash',
+                    'groq_api_key' => defined('GROQ_API_KEY') ? GROQ_API_KEY : '',
+                    'groq_model' => defined('GROQ_MODEL') ? GROQ_MODEL : 'llama-3.1-8b-instant',
+                    'ai_temperature' => defined('AI_TEMPERATURE') ? AI_TEMPERATURE : 0.3,
+                    'ai_max_tokens' => defined('AI_MAX_TOKENS') ? AI_MAX_TOKENS : 2000
+                ];
+            }
+
+            return [];
         }
     }
 
@@ -213,21 +253,51 @@ Be encouraging and constructive - remember, mistakes are part of learning!";
      * Verifica se a API está configurada
      */
     public static function isConfigured() {
-        if (!defined('AI_PROVIDER')) {
-            return false;
-        }
+        try {
+            require_once __DIR__ . '/../config/database.php';
+            $db = Database::getInstance();
 
-        $provider = AI_PROVIDER;
+            $configsRaw = $db->fetchAll("
+                SELECT chave, valor
+                FROM configuracoes
+                WHERE chave IN ('ai_provider', 'openai_api_key', 'gemini_api_key', 'groq_api_key')
+            ");
 
-        switch ($provider) {
-            case 'openai':
-                return defined('OPENAI_API_KEY') && OPENAI_API_KEY !== 'sua-chave-openai-aqui';
-            case 'gemini':
-                return defined('GEMINI_API_KEY') && GEMINI_API_KEY !== 'sua-chave-gemini-aqui';
-            case 'groq':
-                return defined('GROQ_API_KEY') && GROQ_API_KEY !== 'sua-chave-groq-aqui';
-            default:
+            $configs = [];
+            foreach ($configsRaw as $config) {
+                $configs[$config['chave']] = $config['valor'];
+            }
+
+            $provider = $configs['ai_provider'] ?? '';
+
+            switch ($provider) {
+                case 'openai':
+                    return !empty($configs['openai_api_key']);
+                case 'gemini':
+                    return !empty($configs['gemini_api_key']);
+                case 'groq':
+                    return !empty($configs['groq_api_key']);
+                default:
+                    return false;
+            }
+        } catch (Exception $e) {
+            // Fallback para arquivo de configuração
+            if (!defined('AI_PROVIDER')) {
                 return false;
+            }
+
+            $provider = AI_PROVIDER;
+
+            switch ($provider) {
+                case 'openai':
+                    return defined('OPENAI_API_KEY') && !empty(OPENAI_API_KEY);
+                case 'gemini':
+                    return defined('GEMINI_API_KEY') && !empty(GEMINI_API_KEY);
+                case 'groq':
+                    return defined('GROQ_API_KEY') && !empty(GROQ_API_KEY);
+                default:
+                    return false;
+            }
         }
     }
 
@@ -235,7 +305,15 @@ Be encouraging and constructive - remember, mistakes are part of learning!";
      * Retorna o provedor configurado
      */
     public static function getProvider() {
-        return defined('AI_PROVIDER') ? AI_PROVIDER : 'não configurado';
+        try {
+            require_once __DIR__ . '/../config/database.php';
+            $db = Database::getInstance();
+
+            $provider = $db->fetchOne("SELECT valor FROM configuracoes WHERE chave = 'ai_provider'");
+            return $provider ? $provider['valor'] : 'não configurado';
+        } catch (Exception $e) {
+            return defined('AI_PROVIDER') ? AI_PROVIDER : 'não configurado';
+        }
     }
 }
 ?>

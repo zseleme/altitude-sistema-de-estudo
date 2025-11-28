@@ -194,6 +194,12 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                                 <span>Base de Dados</span>
                             </a>
                         </li>
+                        <li>
+                            <a href="/admin/configuracoes_ia.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
+                                <i class="fas fa-robot w-5 mr-3"></i>
+                                <span>Configurações de IA</span>
+                            </a>
+                        </li>
                     </ul>
                 </div>';
             }
