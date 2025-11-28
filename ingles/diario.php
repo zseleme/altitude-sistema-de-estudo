@@ -3,12 +3,14 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/ai_helper.php';
 requireLogin();
 
 $db = Database::getInstance();
 $userId = $_SESSION['user_id'];
 $success = '';
 $error = '';
+$aiEnabled = AIHelper::isConfigured();
 
 // Processar adição/edição de entrada de diário
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -429,12 +431,26 @@ $content .= '
                                 </span>
                             </div>
 
-                            <div class="flex gap-2 mt-4">
+                            <div class="flex gap-2 mt-4 flex-wrap">
                                 <a href="?edit=' . $entrada['id'] . '"
                                    class="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-lg hover:bg-blue-200 transition-colors">
                                     <i class="fas fa-edit mr-1"></i>
                                     Editar
                                 </a>
+
+                                ' . ($aiEnabled ? '
+                                <button onclick="reviewWithAI(' . $entrada['id'] . ', \'' . addslashes($entrada['conteudo']) . '\')"
+                                        class="inline-flex items-center px-3 py-1.5 bg-green-100 text-green-700 text-xs font-medium rounded-lg hover:bg-green-200 transition-colors">
+                                    <i class="fas fa-robot mr-1"></i>
+                                    Revisar com IA
+                                </button>' : '') . '
+
+                                ' . (isset($entrada['revisao_ia']) && $entrada['revisao_ia'] ? '
+                                <button onclick="showReview(' . $entrada['id'] . ')"
+                                        class="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-lg hover:bg-purple-200 transition-colors">
+                                    <i class="fas fa-eye mr-1"></i>
+                                    Ver Revisão
+                                </button>' : '') . '
 
                                 <a href="?delete=' . $entrada['id'] . '"
                                    onclick="return confirm(\'Tem certeza que deseja excluir esta entrada?\')"
@@ -446,7 +462,191 @@ $content .= '
                         </div>';
                         }, $entradas)) . '
                     </div>') . '
-                </div>';
+                </div>
+
+                <!-- Modal de Revisão por IA -->
+                <div id="reviewModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+                    <div class="flex items-center justify-center min-h-screen p-4">
+                        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                            <div class="sticky top-0 bg-white p-6 border-b border-gray-200 flex items-center justify-between">
+                                <h3 class="text-2xl font-bold text-gray-900">
+                                    <i class="fas fa-robot mr-2 text-green-600"></i>
+                                    Revisão por IA
+                                </h3>
+                                <button onclick="closeReviewModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                                    <i class="fas fa-times text-2xl"></i>
+                                </button>
+                            </div>
+
+                            <div id="reviewContent" class="p-6">
+                                <div class="flex items-center justify-center p-12">
+                                    <div class="text-center">
+                                        <i class="fas fa-spinner fa-spin text-4xl text-blue-600 mb-4"></i>
+                                        <p class="text-gray-600">Processando revisão...</p>
+                                        <p class="text-sm text-gray-500 mt-2">Isso pode levar alguns segundos</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                const reviewsCache = {};
+
+                function reviewWithAI(entryId, text) {
+                    const modal = document.getElementById("reviewModal");
+                    const content = document.getElementById("reviewContent");
+
+                    // Mostrar modal com loading
+                    modal.classList.remove("hidden");
+                    content.innerHTML = `
+                        <div class="flex items-center justify-center p-12">
+                            <div class="text-center">
+                                <i class="fas fa-spinner fa-spin text-4xl text-blue-600 mb-4"></i>
+                                <p class="text-gray-600">Processando revisão...</p>
+                                <p class="text-sm text-gray-500 mt-2">Isso pode levar alguns segundos</p>
+                            </div>
+                        </div>
+                    `;
+
+                    // Fazer requisição para API
+                    fetch("/api/revisar_ingles.php", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            entry_id: entryId,
+                            texto: text
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            reviewsCache[entryId] = data.review;
+                            displayReview(data.review);
+
+                            // Recarregar página após 2 segundos para mostrar botão "Ver Revisão"
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 2000);
+                        } else {
+                            content.innerHTML = `
+                                <div class="p-6 bg-red-50 border border-red-200 rounded-lg">
+                                    <div class="flex">
+                                        <i class="fas fa-exclamation-circle text-red-400 mr-2 mt-0.5"></i>
+                                        <div>
+                                            <p class="text-red-700 font-medium">Erro ao processar revisão</p>
+                                            <p class="text-red-600 text-sm mt-1">${data.error}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    })
+                    .catch(error => {
+                        content.innerHTML = `
+                            <div class="p-6 bg-red-50 border border-red-200 rounded-lg">
+                                <div class="flex">
+                                    <i class="fas fa-exclamation-circle text-red-400 mr-2 mt-0.5"></i>
+                                    <div>
+                                        <p class="text-red-700 font-medium">Erro de conexão</p>
+                                        <p class="text-red-600 text-sm mt-1">${error.message}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                function showReview(entryId) {
+                    const modal = document.getElementById("reviewModal");
+                    const content = document.getElementById("reviewContent");
+
+                    modal.classList.remove("hidden");
+
+                    if (reviewsCache[entryId]) {
+                        displayReview(reviewsCache[entryId]);
+                    } else {
+                        // Buscar do servidor
+                        content.innerHTML = `
+                            <div class="flex items-center justify-center p-12">
+                                <div class="text-center">
+                                    <i class="fas fa-spinner fa-spin text-4xl text-blue-600 mb-4"></i>
+                                    <p class="text-gray-600">Carregando revisão...</p>
+                                </div>
+                            </div>
+                        `;
+
+                        fetch("/api/get_review.php?entry_id=" + entryId)
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success && data.review) {
+                                    reviewsCache[entryId] = data.review;
+                                    displayReview(data.review);
+                                } else {
+                                    content.innerHTML = `
+                                        <div class="p-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                            <p class="text-yellow-700">Revisão não encontrada</p>
+                                        </div>
+                                    `;
+                                }
+                            })
+                            .catch(error => {
+                                content.innerHTML = `
+                                    <div class="p-6 bg-red-50 border border-red-200 rounded-lg">
+                                        <p class="text-red-700">Erro ao carregar revisão</p>
+                                    </div>
+                                `;
+                            });
+                    }
+                }
+
+                function displayReview(reviewText) {
+                    const content = document.getElementById("reviewContent");
+
+                    // Formatar o texto da revisão (Markdown simples)
+                    let formattedText = reviewText
+                        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+                        .replace(/\*(.+?)\*/g, "<em>$1</em>")
+                        .replace(/\n\n/g, "</p><p>")
+                        .replace(/\n/g, "<br>");
+
+                    content.innerHTML = `
+                        <div class="prose max-w-none">
+                            <div class="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-lg mb-6">
+                                <p class="text-sm text-gray-600 mb-2">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Revisão gerada por IA - Professor Expert em Inglês
+                                </p>
+                            </div>
+
+                            <div class="text-gray-800 leading-relaxed whitespace-pre-wrap">
+                                ${formattedText}
+                            </div>
+
+                            <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p class="text-sm text-blue-800">
+                                    <i class="fas fa-lightbulb mr-1"></i>
+                                    <strong>Dica:</strong> Use esta revisão para aprender com seus erros e melhorar sua escrita em inglês!
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                function closeReviewModal() {
+                    document.getElementById("reviewModal").classList.add("hidden");
+                }
+
+                // Fechar modal ao clicar fora
+                document.getElementById("reviewModal").addEventListener("click", function(e) {
+                    if (e.target === this) {
+                        closeReviewModal();
+                    }
+                });
+                </script>';
 
 require_once __DIR__ . '/../includes/layout.php';
 renderLayout('Diário de Inglês', $content, true, true);
