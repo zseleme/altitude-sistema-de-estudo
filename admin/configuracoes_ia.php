@@ -22,7 +22,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
             'openai_api_key' => trim($_POST['openai_api_key'] ?? ''),
             'openai_model' => trim($_POST['openai_model'] ?? 'gpt-4o-mini'),
             'gemini_api_key' => trim($_POST['gemini_api_key'] ?? ''),
-            'gemini_model' => trim($_POST['gemini_model'] ?? 'gemini-1.5-flash'),
+            'gemini_model' => trim($_POST['gemini_model'] ?? 'gemini-2.5-flash'),
             'groq_api_key' => trim($_POST['groq_api_key'] ?? ''),
             'groq_model' => trim($_POST['groq_model'] ?? 'llama-3.1-8b-instant'),
             'ai_temperature' => trim($_POST['ai_temperature'] ?? '0.3'),
@@ -256,8 +256,9 @@ $content = '
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Modelo</label>
                                         <select name="gemini_model" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                            <option value="gemini-1.5-flash" ' . (($configs['gemini_model'] ?? '') === 'gemini-1.5-flash' ? 'selected' : '') . '>gemini-1.5-flash (Rápido)</option>
-                                            <option value="gemini-1.5-pro" ' . (($configs['gemini_model'] ?? '') === 'gemini-1.5-pro' ? 'selected' : '') . '>gemini-1.5-pro (Preciso)</option>
+                                            <option value="gemini-2.5-flash" ' . (($configs['gemini_model'] ?? '') === 'gemini-2.5-flash' ? 'selected' : '') . '>gemini-2.5-flash (Recomendado, Gratuito)</option>
+                                            <option value="gemini-2.5-flash-lite" ' . (($configs['gemini_model'] ?? '') === 'gemini-2.5-flash-lite' ? 'selected' : '') . '>gemini-2.5-flash-lite (Mais rápido)</option>
+                                            <option value="gemini-2.5-pro" ' . (($configs['gemini_model'] ?? '') === 'gemini-2.5-pro' ? 'selected' : '') . '>gemini-2.5-pro (Mais preciso)</option>
                                         </select>
                                     </div>
                                 </div>

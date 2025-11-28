@@ -10,7 +10,14 @@ $db = Database::getInstance();
 $userId = $_SESSION['user_id'];
 $success = '';
 $error = '';
-$aiEnabled = AIHelper::isConfigured();
+
+// Debug: verificar se AI está configurada
+try {
+    $aiEnabled = AIHelper::isConfigured();
+} catch (Exception $e) {
+    $aiEnabled = false;
+    error_log("Erro ao verificar configuração de IA: " . $e->getMessage());
+}
 
 // Processar adição/edição de entrada de diário
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -378,7 +385,7 @@ $content .= '
                         <p class="text-gray-500">Comece escrevendo seu diário em inglês!</p>
                     </div>' : '
                     <div class="divide-y divide-gray-200">
-                        ' . implode('', array_map(function($entrada) use ($humorLabels) {
+                        ' . implode('', array_map(function($entrada) use ($humorLabels, $aiEnabled) {
                             $humor = $entrada['humor'];
                             $humorData = $humor ? $humorLabels[$humor] : null;
 

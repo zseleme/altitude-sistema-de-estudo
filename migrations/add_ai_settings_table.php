@@ -55,7 +55,7 @@ try {
         ['openai_api_key', '', 'Chave da API OpenAI', 'password'],
         ['openai_model', 'gpt-4o-mini', 'Modelo OpenAI', 'text'],
         ['gemini_api_key', '', 'Chave da API Google Gemini', 'password'],
-        ['gemini_model', 'gemini-1.5-flash', 'Modelo Gemini', 'text'],
+        ['gemini_model', 'gemini-2.5-flash', 'Modelo Gemini', 'text'],
         ['groq_api_key', '', 'Chave da API Groq', 'password'],
         ['groq_model', 'llama-3.1-8b-instant', 'Modelo Groq', 'text'],
         ['ai_temperature', '0.3', 'Temperatura (0.0-1.0)', 'number'],

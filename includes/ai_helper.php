@@ -32,7 +32,7 @@ class AIHelper {
 
             case 'gemini':
                 $this->apiKey = $configs['gemini_api_key'] ?? '';
-                $this->model = $configs['gemini_model'] ?? 'gemini-1.5-flash';
+                $this->model = $configs['gemini_model'] ?? 'gemini-2.5-flash';
                 if (empty($this->apiKey)) {
                     throw new Exception('Chave da API Gemini não configurada');
                 }
@@ -81,7 +81,7 @@ class AIHelper {
                     'openai_api_key' => defined('OPENAI_API_KEY') ? OPENAI_API_KEY : '',
                     'openai_model' => defined('OPENAI_MODEL') ? OPENAI_MODEL : 'gpt-4o-mini',
                     'gemini_api_key' => defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '',
-                    'gemini_model' => defined('GEMINI_MODEL') ? GEMINI_MODEL : 'gemini-1.5-flash',
+                    'gemini_model' => defined('GEMINI_MODEL') ? GEMINI_MODEL : 'gemini-2.5-flash',
                     'groq_api_key' => defined('GROQ_API_KEY') ? GROQ_API_KEY : '',
                     'groq_model' => defined('GROQ_MODEL') ? GROQ_MODEL : 'llama-3.1-8b-instant',
                     'ai_temperature' => defined('AI_TEMPERATURE') ? AI_TEMPERATURE : 0.3,
@@ -154,15 +154,22 @@ Be encouraging and constructive - remember, mistakes are part of learning!";
      * Google Gemini API (GRATUITO)
      */
     private function sendGeminiRequest($systemPrompt, $userPrompt) {
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent?key={$this->apiKey}";
+        // O endpoint precisa do formato: models/{model}
+        $modelPath = 'models/' . str_replace('models/', '', $this->model);
 
-        $combinedPrompt = $systemPrompt . "\n\n" . $userPrompt;
+        $url = "https://generativelanguage.googleapis.com/v1beta/{$modelPath}:generateContent?key={$this->apiKey}";
 
+        // Gemini API usa systemInstruction separado do contents
         $data = [
+            'systemInstruction' => [
+                'parts' => [
+                    ['text' => $systemPrompt]
+                ]
+            ],
             'contents' => [
                 [
                     'parts' => [
-                        ['text' => $combinedPrompt]
+                        ['text' => $userPrompt]
                     ]
                 ]
             ],
