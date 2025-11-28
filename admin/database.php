@@ -1,0 +1,394 @@
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/../includes/auth.php';
+requireAdmin();
+
+$db = Database::getInstance();
+$success = '';
+$error = '';
+
+// Processar download do backup
+if (isset($_GET['action']) && $_GET['action'] === 'download') {
+    try {
+        $dbType = $db->getDbType();
+        $backupFile = '';
+        $filename = 'backup_' . date('Y-m-d_H-i-s');
+
+        if ($dbType === 'sqlite') {
+            // Para SQLite, copiar o arquivo .db
+            $dbPath = DB_PATH;
+            if (file_exists($dbPath)) {
+                header('Content-Type: application/octet-stream');
+                header('Content-Disposition: attachment; filename="' . $filename . '.db"');
+                header('Content-Length: ' . filesize($dbPath));
+                readfile($dbPath);
+                exit;
+            } else {
+                $error = 'Arquivo de banco de dados não encontrado';
+            }
+        } else {
+            // Para PostgreSQL, criar dump SQL
+            $dumpFile = sys_get_temp_dir() . '/' . $filename . '.sql';
+
+            $command = sprintf(
+                'pg_dump -h %s -p %s -U %s -d %s -n %s > %s 2>&1',
+                escapeshellarg(DB_HOST),
+                escapeshellarg(DB_PORT),
+                escapeshellarg(DB_USER),
+                escapeshellarg(DB_NAME),
+                escapeshellarg(DB_SCHEMA),
+                escapeshellarg($dumpFile)
+            );
+
+            // Definir senha via variável de ambiente
+            putenv('PGPASSWORD=' . DB_PASS);
+
+            exec($command, $output, $returnCode);
+
+            if ($returnCode === 0 && file_exists($dumpFile)) {
+                header('Content-Type: application/sql');
+                header('Content-Disposition: attachment; filename="' . $filename . '.sql"');
+                header('Content-Length: ' . filesize($dumpFile));
+                readfile($dumpFile);
+                unlink($dumpFile);
+                exit;
+            } else {
+                $error = 'Erro ao criar backup do PostgreSQL. Verifique se pg_dump está instalado.';
+            }
+        }
+    } catch (Exception $e) {
+        $error = 'Erro ao fazer download do backup: ' . $e->getMessage();
+    }
+}
+
+// Processar upload/restore do backup
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['backup_file'])) {
+    try {
+        $file = $_FILES['backup_file'];
+
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            throw new Exception('Erro no upload do arquivo');
+        }
+
+        $dbType = $db->getDbType();
+
+        if ($dbType === 'sqlite') {
+            // Para SQLite, verificar se é arquivo .db
+            $fileExtension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if ($fileExtension !== 'db') {
+                throw new Exception('O arquivo deve ter extensão .db para SQLite');
+            }
+
+            $dbPath = DB_PATH;
+            $backupPath = $dbPath . '.backup_' . date('Y-m-d_H-i-s');
+
+            // Fazer backup do arquivo atual
+            if (file_exists($dbPath)) {
+                copy($dbPath, $backupPath);
+            }
+
+            // Substituir com o arquivo enviado
+            if (move_uploaded_file($file['tmp_name'], $dbPath)) {
+                $success = 'Base de dados restaurada com sucesso! Backup anterior salvo em: ' . basename($backupPath);
+            } else {
+                throw new Exception('Erro ao mover arquivo de backup');
+            }
+        } else {
+            // Para PostgreSQL, restaurar dump SQL
+            $fileExtension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if ($fileExtension !== 'sql') {
+                throw new Exception('O arquivo deve ter extensão .sql para PostgreSQL');
+            }
+
+            $tempFile = sys_get_temp_dir() . '/' . basename($file['tmp_name']) . '.sql';
+
+            if (!move_uploaded_file($file['tmp_name'], $tempFile)) {
+                throw new Exception('Erro ao processar arquivo de backup');
+            }
+
+            // Limpar schema antes de restaurar
+            $db->execute("DROP SCHEMA IF EXISTS " . DB_SCHEMA . " CASCADE");
+            $db->execute("CREATE SCHEMA " . DB_SCHEMA);
+
+            $command = sprintf(
+                'psql -h %s -p %s -U %s -d %s < %s 2>&1',
+                escapeshellarg(DB_HOST),
+                escapeshellarg(DB_PORT),
+                escapeshellarg(DB_USER),
+                escapeshellarg(DB_NAME),
+                escapeshellarg($tempFile)
+            );
+
+            putenv('PGPASSWORD=' . DB_PASS);
+
+            exec($command, $output, $returnCode);
+            unlink($tempFile);
+
+            if ($returnCode === 0) {
+                $success = 'Base de dados restaurada com sucesso!';
+            } else {
+                throw new Exception('Erro ao restaurar backup. Verifique se psql está instalado. Erro: ' . implode("\n", $output));
+            }
+        }
+    } catch (Exception $e) {
+        $error = 'Erro ao restaurar backup: ' . $e->getMessage();
+    }
+}
+
+// Obter informações sobre o banco de dados
+$dbType = $db->getDbType();
+$dbInfo = [];
+
+if ($dbType === 'sqlite') {
+    $dbPath = DB_PATH;
+    $dbInfo['tipo'] = 'SQLite';
+    $dbInfo['arquivo'] = $dbPath;
+    $dbInfo['tamanho'] = file_exists($dbPath) ? filesize($dbPath) : 0;
+    $dbInfo['tamanho_formatado'] = $dbInfo['tamanho'] > 0 ? number_format($dbInfo['tamanho'] / 1024, 2) . ' KB' : 'N/A';
+} else {
+    $dbInfo['tipo'] = 'PostgreSQL';
+    $dbInfo['host'] = DB_HOST;
+    $dbInfo['porta'] = DB_PORT;
+    $dbInfo['banco'] = DB_NAME;
+    $dbInfo['schema'] = DB_SCHEMA;
+}
+
+// Contar registros nas principais tabelas
+$tables = ['usuarios', 'categorias', 'cursos', 'aulas', 'materiais'];
+$dbInfo['tabelas'] = [];
+
+foreach ($tables as $table) {
+    try {
+        $result = $db->fetchOne("SELECT COUNT(*) as total FROM $table");
+        $dbInfo['tabelas'][$table] = $result['total'];
+    } catch (Exception $e) {
+        $dbInfo['tabelas'][$table] = 0;
+    }
+}
+
+$content = '
+                <!-- Breadcrumb -->
+                <nav class="flex mb-6" aria-label="Breadcrumb">
+                    <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                        <li class="inline-flex items-center">
+                            <a href="/home.php" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600">
+                                <i class="fas fa-home mr-2"></i>
+                                Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <div class="flex items-center">
+                                <i class="fas fa-chevron-right text-gray-400 mx-1"></i>
+                                <span class="ml-1 text-sm font-medium text-gray-500 md:ml-2">Administração</span>
+                            </div>
+                        </li>
+                        <li>
+                            <div class="flex items-center">
+                                <i class="fas fa-chevron-right text-gray-400 mx-1"></i>
+                                <span class="ml-1 text-sm font-medium text-gray-500 md:ml-2">Base de Dados</span>
+                            </div>
+                        </li>
+                    </ol>
+                </nav>
+
+                <!-- Page Header -->
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-gray-900">Gestão da Base de Dados</h1>
+                    <p class="text-gray-600 mt-2">Faça backup e restaure a base de dados do sistema</p>
+                </div>
+
+                <!-- Success/Error Messages -->
+                ' . ($success ? '
+                <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div class="flex">
+                        <i class="fas fa-check-circle text-green-400 mr-2 mt-0.5"></i>
+                        <p class="text-green-700 text-sm">' . htmlspecialchars($success) . '</p>
+                    </div>
+                </div>' : '') . '
+
+                ' . ($error ? '
+                <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div class="flex">
+                        <i class="fas fa-exclamation-circle text-red-400 mr-2 mt-0.5"></i>
+                        <p class="text-red-700 text-sm">' . htmlspecialchars($error) . '</p>
+                    </div>
+                </div>' : '') . '
+
+                <!-- Database Info -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h2 class="text-xl font-semibold text-gray-900 mb-4">
+                            <i class="fas fa-database mr-2 text-blue-600"></i>
+                            Informações da Base de Dados
+                        </h2>
+
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span class="text-sm font-medium text-gray-600">Tipo:</span>
+                                <span class="text-sm text-gray-900 font-semibold">' . htmlspecialchars($dbInfo['tipo']) . '</span>
+                            </div>
+
+                            ' . ($dbType === 'sqlite' ? '
+                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span class="text-sm font-medium text-gray-600">Arquivo:</span>
+                                <span class="text-sm text-gray-900 font-mono text-xs">' . htmlspecialchars(basename($dbInfo['arquivo'])) . '</span>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span class="text-sm font-medium text-gray-600">Tamanho:</span>
+                                <span class="text-sm text-gray-900">' . htmlspecialchars($dbInfo['tamanho_formatado']) . '</span>
+                            </div>' : '
+                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span class="text-sm font-medium text-gray-600">Host:</span>
+                                <span class="text-sm text-gray-900">' . htmlspecialchars($dbInfo['host']) . ':' . htmlspecialchars($dbInfo['porta']) . '</span>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span class="text-sm font-medium text-gray-600">Banco:</span>
+                                <span class="text-sm text-gray-900">' . htmlspecialchars($dbInfo['banco']) . '</span>
+                            </div>
+                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span class="text-sm font-medium text-gray-600">Schema:</span>
+                                <span class="text-sm text-gray-900">' . htmlspecialchars($dbInfo['schema']) . '</span>
+                            </div>') . '
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h2 class="text-xl font-semibold text-gray-900 mb-4">
+                            <i class="fas fa-table mr-2 text-blue-600"></i>
+                            Estatísticas
+                        </h2>
+
+                        <div class="space-y-3">
+                            ' . implode('', array_map(function($table, $count) {
+                                $icons = [
+                                    'usuarios' => 'fa-users',
+                                    'categorias' => 'fa-folder',
+                                    'cursos' => 'fa-book',
+                                    'aulas' => 'fa-video',
+                                    'materiais' => 'fa-file-pdf'
+                                ];
+                                $icon = $icons[$table] ?? 'fa-table';
+                                return '
+                            <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span class="text-sm font-medium text-gray-600">
+                                    <i class="fas ' . $icon . ' mr-2 text-gray-400"></i>
+                                    ' . ucfirst($table) . ':
+                                </span>
+                                <span class="text-sm text-gray-900 font-semibold">' . number_format($count) . '</span>
+                            </div>';
+                            }, array_keys($dbInfo['tabelas']), $dbInfo['tabelas'])) . '
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Download Backup -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div class="flex items-start mb-4">
+                            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                                <i class="fas fa-download text-2xl text-blue-600"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">Download do Backup</h3>
+                                <p class="text-sm text-gray-600 mt-1">Faça o download de um backup completo da base de dados</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                            <div class="flex">
+                                <i class="fas fa-info-circle text-yellow-600 mr-2 mt-0.5"></i>
+                                <div class="text-sm text-yellow-800">
+                                    <p class="font-medium mb-1">Importante:</p>
+                                    <ul class="list-disc list-inside space-y-1">
+                                        <li>O backup incluirá todos os dados atuais</li>
+                                        <li>Guarde o arquivo em local seguro</li>
+                                        <li>Formato: ' . ($dbType === 'sqlite' ? '.db (SQLite)' : '.sql (PostgreSQL)') . '</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <a href="?action=download"
+                           class="inline-flex items-center justify-center w-full px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                            <i class="fas fa-download mr-2"></i>
+                            Baixar Backup Agora
+                        </a>
+                    </div>
+
+                    <!-- Upload/Restore Backup -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div class="flex items-start mb-4">
+                            <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mr-4">
+                                <i class="fas fa-upload text-2xl text-orange-600"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">Restaurar Backup</h3>
+                                <p class="text-sm text-gray-600 mt-1">Faça upload de um backup para restaurar a base de dados</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                            <div class="flex">
+                                <i class="fas fa-exclamation-triangle text-red-600 mr-2 mt-0.5"></i>
+                                <div class="text-sm text-red-800">
+                                    <p class="font-medium mb-1">Atenção!</p>
+                                    <ul class="list-disc list-inside space-y-1">
+                                        <li>Todos os dados atuais serão substituídos</li>
+                                        <li>Esta ação não pode ser desfeita</li>
+                                        <li>Faça um backup antes de restaurar</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <form method="POST" enctype="multipart/form-data" onsubmit="return confirm(\'ATENÇÃO: Todos os dados atuais serão substituídos. Você tem certeza?\');">
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Arquivo de Backup (' . ($dbType === 'sqlite' ? '.db' : '.sql') . ')
+                                </label>
+                                <input type="file"
+                                       name="backup_file"
+                                       accept="' . ($dbType === 'sqlite' ? '.db' : '.sql') . '"
+                                       required
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors">
+                            </div>
+
+                            <button type="submit"
+                                    class="inline-flex items-center justify-center w-full px-4 py-3 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors">
+                                <i class="fas fa-upload mr-2"></i>
+                                Restaurar Backup
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Help Section -->
+                <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-blue-900 mb-3">
+                        <i class="fas fa-question-circle mr-2"></i>
+                        Como funciona?
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <h4 class="font-medium text-blue-900 mb-2">Download do Backup</h4>
+                            <p class="text-sm text-blue-800">
+                                Cria uma cópia completa da base de dados atual. Use isto regularmente para ter backups de segurança
+                                ou antes de fazer alterações importantes no sistema.
+                            </p>
+                        </div>
+                        <div>
+                            <h4 class="font-medium text-blue-900 mb-2">Restaurar Backup</h4>
+                            <p class="text-sm text-blue-800">
+                                Substitui todos os dados atuais pelos dados do arquivo de backup. Use isto para recuperar dados
+                                de um backup anterior ou migrar dados entre instalações.
+                            </p>
+                        </div>
+                    </div>
+                </div>';
+
+require_once __DIR__ . '/../includes/layout.php';
+renderLayout('Base de Dados - Administração', $content, true, true);
+?>

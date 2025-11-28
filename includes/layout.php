@@ -132,14 +132,33 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                         </a>
                     </li>
                     <li>
-                        <a href="#" class="flex items-center px-4 py-3 text-white hover:bg-gray-700 rounded-lg transition-colors">
+                        <a href="/certificados.php" class="flex items-center px-4 py-3 text-white hover:bg-gray-700 rounded-lg transition-colors">
                             <i class="fas fa-certificate w-5 mr-3"></i>
                             <span>Certificados</span>
                         </a>
                     </li>
 
-                </ul>';
-            
+                </ul>
+
+                <!-- English Section -->
+                <div class="mt-8 pt-4 border-t border-gray-700">
+                    <h3 class="px-4 text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">🇺🇸 Inglês</h3>
+                    <ul class="space-y-2">
+                        <li>
+                            <a href="/ingles/anotacoes.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
+                                <i class="fas fa-sticky-note w-5 mr-3"></i>
+                                <span>Anotações</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/ingles/diario.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
+                                <i class="fas fa-book-open w-5 mr-3"></i>
+                                <span>Diário</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>';
+
             if ($isAdmin) {
                 echo '                
                 <div class="mt-8 pt-4 border-t border-gray-700">
@@ -167,6 +186,12 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                             <a href="/admin/usuarios.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
                                 <i class="fas fa-users w-5 mr-3"></i>
                                 <span>Usuários</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/admin/database.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
+                                <i class="fas fa-database w-5 mr-3"></i>
+                                <span>Base de Dados</span>
                             </a>
                         </li>
                     </ul>
