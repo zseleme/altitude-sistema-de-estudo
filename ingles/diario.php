@@ -85,16 +85,19 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
 }
 
 // Filtros
-$mesAno = $_GET['mes'] ?? date('Y-m');
+$mesAno = $_GET['mes'] ?? '';
 $searchQuery = trim($_GET['search'] ?? '');
 
-// Buscar entradas do diário
+// Buscar entradas do diário (últimos 30 dias por padrão, a menos que haja filtro)
 $sql = "SELECT * FROM ingles_diario WHERE usuario_id = ?";
 $params = [$userId];
 
 if ($mesAno) {
     $sql .= " AND strftime('%Y-%m', data_entrada) = ?";
     $params[] = $mesAno;
+} elseif (!$searchQuery) {
+    // Se não há filtro de mês nem busca, mostrar apenas últimos 30 dias
+    $sql .= " AND data_entrada >= date('now', '-30 days')";
 }
 
 if ($searchQuery) {
@@ -116,6 +119,14 @@ $porHumor = $db->fetchAll("
     WHERE usuario_id = ? AND humor IS NOT NULL
     GROUP BY humor
 ", [$userId]);
+
+// Contar entradas do mês atual
+$entradasEsteMes = $db->fetchOne("
+    SELECT COUNT(*) as total
+    FROM ingles_diario
+    WHERE usuario_id = ?
+      AND strftime('%Y-%m', data_entrada) = strftime('%Y-%m', 'now')
+", [$userId])['total'];
 
 // Função para calcular sequência de dias consecutivos
 function calcularSequencia($db, $userId) {
@@ -251,7 +262,7 @@ $content = '
                         <div class="flex items-center justify-between">
                             <div>
                                 <p class="text-sm text-gray-600">Este Mês</p>
-                                <p class="text-2xl font-bold text-gray-900">' . count($entradas) . '</p>
+                                <p class="text-2xl font-bold text-gray-900">' . $entradasEsteMes . '</p>
                             </div>
                             <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                                 <i class="fas fa-calendar-check text-2xl text-green-600"></i>
@@ -361,7 +372,7 @@ $content .= '
                                 class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                             <i class="fas fa-search"></i>
                         </button>
-                        ' . ($searchQuery || $mesAno !== date('Y-m') ? '
+                        ' . ($searchQuery || $mesAno ? '
                         <a href="/ingles/diario.php"
                            class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
                             <i class="fas fa-times"></i>
@@ -371,11 +382,17 @@ $content .= '
 
                 <!-- Diary Entries -->
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                    <div class="p-6 border-b border-gray-200">
+                    <div class="p-6 border-b border-gray-200 flex items-center justify-between">
                         <h2 class="text-xl font-semibold text-gray-900">
                             <i class="fas fa-book-open mr-2 text-blue-600"></i>
                             Minhas Entradas
+                            <span class="ml-2 text-sm font-normal text-gray-500">(Últimos 30 dias)</span>
                         </h2>
+                        <a href="/api/exportar_diario.php"
+                           class="inline-flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
+                            <i class="fas fa-download mr-2"></i>
+                            Exportar Frases
+                        </a>
                     </div>
 
                     ' . (empty($entradas) ? '
