@@ -1,103 +1,107 @@
 <?php
-session_start();
-require_once 'includes/auth.php';
-
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/includes/auth.php';
 requireAdmin();
 
-$page_title = 'Gerenciar Simulados';
-include 'includes/header.php';
-?>
-
-<div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>Gerenciar Simulados</h2>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#novoSimuladoModal">
-            <i class="bi bi-plus-circle"></i> Novo Simulado
+$content = '
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="mb-8 flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Gerenciar Simulados</h1>
+            <p class="text-gray-600">Crie e gerencie simulados para os estudantes</p>
+        </div>
+        <button onclick="abrirModalNovoSimulado()" class="bg-blue-600 text-white px-6 py-3 text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center">
+            <i class="fas fa-plus mr-2"></i>
+            Novo Simulado
         </button>
     </div>
 
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover" id="tabelaSimulados">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Título</th>
-                                    <th>Disciplina</th>
-                                    <th>Questões</th>
-                                    <th>Tempo Limite</th>
-                                    <th>Status</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Carregado via JavaScript -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+    <!-- Tabela -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full" id="tabelaSimulados">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Título</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Disciplina</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Questões</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tempo</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    <!-- Carregado via JS -->
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
 <!-- Modal Novo Simulado -->
-<div class="modal fade" id="novoSimuladoModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Novo Simulado</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<div id="modalNovoSimulado" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-xl font-bold text-gray-900">Novo Simulado</h3>
+                <button onclick="fecharModalNovoSimulado()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
             </div>
-            <div class="modal-body">
-                <form id="formNovoSimulado">
-                    <div class="mb-3">
-                        <label class="form-label">Título *</label>
-                        <input type="text" class="form-control" name="titulo" required>
+            <div class="p-6">
+                <form id="formNovoSimulado" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+                        <input type="text" name="titulo" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Descrição</label>
-                        <textarea class="form-control" name="descricao" rows="3"></textarea>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                        <textarea name="descricao" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Disciplina</label>
-                        <input type="text" class="form-control" name="disciplina" placeholder="Ex: Matemática, História, etc">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Disciplina</label>
+                        <input type="text" name="disciplina" placeholder="Ex: Matemática, História" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tempo Limite (minutos)</label>
-                        <input type="number" class="form-control" name="tempo_limite" placeholder="0 = sem limite">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tempo Limite (minutos)</label>
+                        <input type="number" name="tempo_limite" placeholder="0 = sem limite" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     </div>
                 </form>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="criarSimulado()">Criar</button>
+            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                <button onclick="fecharModalNovoSimulado()" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors">Cancelar</button>
+                <button onclick="criarSimulado()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">Criar</button>
             </div>
         </div>
     </div>
 </div>
 
 <!-- Modal Cadastro Massivo -->
-<div class="modal fade" id="cadastroMassivoModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Cadastro Massivo de Questões</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<div id="modalCadastroMassivo" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl my-8">
+            <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-xl font-bold text-gray-900">Cadastro Massivo de Questões</h3>
+                <button onclick="fecharModalCadastroMassivo()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
             </div>
-            <div class="modal-body">
+            <div class="p-6">
                 <input type="hidden" id="simuladoIdMassivo">
 
-                <div class="alert alert-info">
-                    <strong>Como usar:</strong> Cole ou digite as questões no formato JSON abaixo. Você pode adicionar múltiplas questões de uma vez.
-                    <button class="btn btn-sm btn-outline-primary float-end" onclick="mostrarExemploJSON()">Ver Exemplo</button>
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                    <div class="flex justify-between items-center">
+                        <p class="text-blue-900 text-sm"><strong>Como usar:</strong> Cole as questões no formato JSON abaixo</p>
+                        <button onclick="mostrarExemploJSON()" class="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700">Ver Exemplo</button>
+                    </div>
                 </div>
 
-                <div id="exemploJSON" style="display: none;" class="mb-3">
-                    <pre class="bg-light p-3 rounded"><code>[
+                <div id="exemploJSON" class="hidden bg-gray-50 p-4 rounded-lg mb-4 overflow-x-auto">
+                    <pre class="text-xs"><code>[
   {
     "enunciado": "Qual a capital do Brasil?",
     "alternativa_a": "São Paulo",
@@ -106,41 +110,31 @@ include 'includes/header.php';
     "alternativa_d": "Salvador",
     "alternativa_e": "",
     "resposta_correta": "C",
-    "explicacao": "Brasília é a capital federal do Brasil desde 1960.",
+    "explicacao": "Brasília é a capital desde 1960.",
     "nivel_dificuldade": "facil",
-    "tags": "geografia, brasil, capitais"
-  },
-  {
-    "enunciado": "Quanto é 2 + 2?",
-    "alternativa_a": "3",
-    "alternativa_b": "4",
-    "alternativa_c": "5",
-    "alternativa_d": "6",
-    "alternativa_e": "7",
-    "resposta_correta": "B",
-    "explicacao": "2 + 2 = 4. Soma básica de aritmética.",
-    "nivel_dificuldade": "facil",
-    "tags": "matematica, aritmetica"
+    "tags": "geografia, brasil"
   }
 ]</code></pre>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">JSON das Questões</label>
-                    <textarea class="form-control font-monospace" id="questoesJSON" rows="15" placeholder='[{"enunciado": "...", "alternativa_a": "...", ...}]'></textarea>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">JSON das Questões</label>
+                    <textarea id="questoesJSON" rows="12" placeholder=\'[{"enunciado": "...", ...}]\' class="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
                 </div>
 
-                <div class="mb-3">
-                    <button class="btn btn-outline-secondary" onclick="validarJSON()">
-                        <i class="bi bi-check-circle"></i> Validar JSON
+                <div class="flex items-center space-x-3 mb-4">
+                    <button onclick="validarJSON()" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors inline-flex items-center">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        Validar
                     </button>
-                    <span id="validacaoStatus" class="ms-2"></span>
+                    <span id="validacaoStatus"></span>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="salvarQuestoesMassivo()">
-                    <i class="bi bi-save"></i> Salvar Questões
+            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                <button onclick="fecharModalCadastroMassivo()" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors">Cancelar</button>
+                <button onclick="salvarQuestoesMassivo()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center">
+                    <i class="fas fa-save mr-2"></i>
+                    Salvar
                 </button>
             </div>
         </div>
@@ -150,139 +144,148 @@ include 'includes/header.php';
 <script>
 let simulados = [];
 
-document.addEventListener('DOMContentLoaded', function() {
-    carregarSimulados();
-});
+document.addEventListener(\'DOMContentLoaded\', carregarSimulados);
 
 async function carregarSimulados() {
     try {
-        const response = await fetch('api/simulados.php?action=listar');
+        const response = await fetch(\'api/simulados.php?action=listar\');
         simulados = await response.json();
 
-        const tbody = document.querySelector('#tabelaSimulados tbody');
-        tbody.innerHTML = '';
+        const tbody = document.querySelector(\'#tabelaSimulados tbody\');
+        tbody.innerHTML = \'\';
 
         simulados.forEach(sim => {
-            const tr = document.createElement('tr');
+            const tr = document.createElement(\'tr\');
+            tr.className = \'hover:bg-gray-50\';
             tr.innerHTML = `
-                <td>${sim.id}</td>
-                <td>${sim.titulo}</td>
-                <td>${sim.disciplina || '-'}</td>
-                <td><span class="badge bg-primary">${sim.total_questoes || 0}</span></td>
-                <td>${sim.tempo_limite ? sim.tempo_limite + ' min' : 'Sem limite'}</td>
-                <td>
-                    <span class="badge bg-${sim.ativo == 1 ? 'success' : 'secondary'}">
-                        ${sim.ativo == 1 ? 'Ativo' : 'Inativo'}
+                <td class="px-6 py-4 text-sm text-gray-900">${sim.id}</td>
+                <td class="px-6 py-4 text-sm text-gray-900 font-medium">${sim.titulo}</td>
+                <td class="px-6 py-4 text-sm text-gray-600">${sim.disciplina || \'-\'}</td>
+                <td class="px-6 py-4">
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        ${sim.total_questoes || 0}
                     </span>
                 </td>
-                <td>
-                    <button class="btn btn-sm btn-primary" onclick="abrirCadastroMassivo(${sim.id})" title="Adicionar Questões">
-                        <i class="bi bi-plus-circle"></i>
+                <td class="px-6 py-4 text-sm text-gray-600">${sim.tempo_limite ? sim.tempo_limite + \' min\' : \'Sem limite\'}</td>
+                <td class="px-6 py-4">
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${sim.ativo == 1 ? \'bg-green-100 text-green-800\' : \'bg-gray-100 text-gray-800\'}">
+                        ${sim.ativo == 1 ? \'Ativo\' : \'Inativo\'}
+                    </span>
+                </td>
+                <td class="px-6 py-4 text-sm space-x-2">
+                    <button onclick="abrirCadastroMassivo(${sim.id})" class="text-blue-600 hover:text-blue-800" title="Adicionar Questões">
+                        <i class="fas fa-plus-circle"></i>
                     </button>
-                    <button class="btn btn-sm btn-info" onclick="visualizarQuestoes(${sim.id})" title="Ver Questões">
-                        <i class="bi bi-eye"></i>
+                    <button onclick="visualizarQuestoes(${sim.id})" class="text-gray-600 hover:text-gray-800" title="Ver Questões">
+                        <i class="fas fa-eye"></i>
                     </button>
                 </td>
             `;
             tbody.appendChild(tr);
         });
     } catch (error) {
-        console.error('Erro ao carregar simulados:', error);
-        alert('Erro ao carregar simulados');
+        console.error(\'Erro:\', error);
+        alert(\'Erro ao carregar simulados\');
     }
 }
 
+function abrirModalNovoSimulado() {
+    document.getElementById(\'modalNovoSimulado\').classList.remove(\'hidden\');
+}
+
+function fecharModalNovoSimulado() {
+    document.getElementById(\'modalNovoSimulado\').classList.add(\'hidden\');
+    document.getElementById(\'formNovoSimulado\').reset();
+}
+
 async function criarSimulado() {
-    const form = document.getElementById('formNovoSimulado');
+    const form = document.getElementById(\'formNovoSimulado\');
     const formData = new FormData(form);
 
     const data = {
-        titulo: formData.get('titulo'),
-        descricao: formData.get('descricao'),
-        disciplina: formData.get('disciplina'),
-        tempo_limite: formData.get('tempo_limite') || 0
+        titulo: formData.get(\'titulo\'),
+        descricao: formData.get(\'descricao\'),
+        disciplina: formData.get(\'disciplina\'),
+        tempo_limite: formData.get(\'tempo_limite\') || 0
     };
 
     try {
-        const response = await fetch('api/simulados.php?action=criar', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+        const response = await fetch(\'api/simulados.php?action=criar\', {
+            method: \'POST\',
+            headers: {\'Content-Type\': \'application/json\'},
             body: JSON.stringify(data)
         });
 
         const result = await response.json();
 
         if (result.success) {
-            bootstrap.Modal.getInstance(document.getElementById('novoSimuladoModal')).hide();
-            form.reset();
+            fecharModalNovoSimulado();
             carregarSimulados();
-            alert('Simulado criado com sucesso!');
+            alert(\'Simulado criado com sucesso!\');
         } else {
-            alert('Erro ao criar simulado: ' + result.error);
+            alert(\'Erro: \' + result.error);
         }
     } catch (error) {
-        console.error('Erro:', error);
-        alert('Erro ao criar simulado');
+        console.error(\'Erro:\', error);
+        alert(\'Erro ao criar simulado\');
     }
 }
 
 function abrirCadastroMassivo(simuladoId) {
-    document.getElementById('simuladoIdMassivo').value = simuladoId;
-    document.getElementById('questoesJSON').value = '';
-    document.getElementById('validacaoStatus').innerHTML = '';
-    const modal = new bootstrap.Modal(document.getElementById('cadastroMassivoModal'));
-    modal.show();
+    document.getElementById(\'simuladoIdMassivo\').value = simuladoId;
+    document.getElementById(\'questoesJSON\').value = \'\';
+    document.getElementById(\'validacaoStatus\').innerHTML = \'\';
+    document.getElementById(\'modalCadastroMassivo\').classList.remove(\'hidden\');
+}
+
+function fecharModalCadastroMassivo() {
+    document.getElementById(\'modalCadastroMassivo\').classList.add(\'hidden\');
 }
 
 function mostrarExemploJSON() {
-    const exemplo = document.getElementById('exemploJSON');
-    exemplo.style.display = exemplo.style.display === 'none' ? 'block' : 'none';
+    document.getElementById(\'exemploJSON\').classList.toggle(\'hidden\');
 }
 
 function validarJSON() {
-    const textarea = document.getElementById('questoesJSON');
-    const status = document.getElementById('validacaoStatus');
+    const textarea = document.getElementById(\'questoesJSON\');
+    const status = document.getElementById(\'validacaoStatus\');
 
     try {
         const questoes = JSON.parse(textarea.value);
 
         if (!Array.isArray(questoes)) {
-            throw new Error('O JSON deve ser um array de questões');
+            throw new Error(\'O JSON deve ser um array\');
         }
 
         questoes.forEach((q, index) => {
-            const campos = ['enunciado', 'alternativa_a', 'alternativa_b', 'alternativa_c', 'alternativa_d', 'resposta_correta'];
+            const campos = [\'enunciado\', \'alternativa_a\', \'alternativa_b\', \'alternativa_c\', \'alternativa_d\', \'resposta_correta\'];
             campos.forEach(campo => {
-                if (!q[campo]) {
-                    throw new Error(`Questão ${index + 1}: campo "${campo}" é obrigatório`);
-                }
+                if (!q[campo]) throw new Error(`Questão ${index + 1}: campo "${campo}" obrigatório`);
             });
 
-            if (!['A', 'B', 'C', 'D', 'E'].includes(q.resposta_correta.toUpperCase())) {
+            if (![\'A\', \'B\', \'C\', \'D\', \'E\'].includes(q.resposta_correta.toUpperCase())) {
                 throw new Error(`Questão ${index + 1}: resposta_correta deve ser A, B, C, D ou E`);
             }
         });
 
-        status.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> JSON válido! ${questoes.length} questões prontas para importar.</span>`;
+        status.innerHTML = `<span class="text-green-600 text-sm flex items-center"><i class="fas fa-check-circle mr-1"></i>JSON válido! ${questoes.length} questões prontas.</span>`;
         return true;
     } catch (error) {
-        status.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle"></i> Erro: ${error.message}</span>`;
+        status.innerHTML = `<span class="text-red-600 text-sm flex items-center"><i class="fas fa-times-circle mr-1"></i>${error.message}</span>`;
         return false;
     }
 }
 
 async function salvarQuestoesMassivo() {
-    if (!validarJSON()) {
-        return;
-    }
+    if (!validarJSON()) return;
 
-    const simuladoId = document.getElementById('simuladoIdMassivo').value;
-    const questoes = JSON.parse(document.getElementById('questoesJSON').value);
+    const simuladoId = document.getElementById(\'simuladoIdMassivo\').value;
+    const questoes = JSON.parse(document.getElementById(\'questoesJSON\').value);
 
     try {
-        const response = await fetch('api/questoes.php?action=cadastrar_massivo', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+        const response = await fetch(\'api/questoes.php?action=cadastrar_massivo\', {
+            method: \'POST\',
+            headers: {\'Content-Type\': \'application/json\'},
             body: JSON.stringify({
                 simulado_id: simuladoId,
                 questoes: questoes
@@ -292,21 +295,23 @@ async function salvarQuestoesMassivo() {
         const result = await response.json();
 
         if (result.success) {
-            bootstrap.Modal.getInstance(document.getElementById('cadastroMassivoModal')).hide();
+            fecharModalCadastroMassivo();
             carregarSimulados();
             alert(`${result.total} questões cadastradas com sucesso!`);
         } else {
-            alert('Erro ao cadastrar questões: ' + result.error);
+            alert(\'Erro: \' + result.error);
         }
     } catch (error) {
-        console.error('Erro:', error);
-        alert('Erro ao cadastrar questões');
+        console.error(\'Erro:\', error);
+        alert(\'Erro ao cadastrar questões\');
     }
 }
 
 function visualizarQuestoes(simuladoId) {
     window.location.href = `visualizar_questoes.php?id=${simuladoId}`;
 }
-</script>
+</script>';
 
-<?php include 'includes/footer.php'; ?>
+require_once __DIR__ . '/includes/layout.php';
+renderLayout('Gerenciar Simulados', $content, true, true);
+?>

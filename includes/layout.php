@@ -172,10 +172,13 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                 </div>';
 
             if ($isAdmin) {
-                echo '                
+                echo '
                 <div class="mt-8 pt-4 border-t border-gray-700">
-                    <h3 class="px-4 text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Administração</h3>
-                    <ul class="space-y-2">
+                    <button onclick="toggleAdminDropdown()" class="w-full flex items-center justify-between px-4 py-2 text-sm font-semibold text-gray-400 uppercase tracking-wider hover:bg-gray-700 rounded-lg transition-colors">
+                        <span>Administração</span>
+                        <i id="admin-dropdown-icon" class="fas fa-chevron-down text-xs transition-transform duration-200"></i>
+                    </button>
+                    <ul id="admin-dropdown-menu" class="space-y-2 mt-2 hidden">
                         <li>
                             <a href="/admin/categorias.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
                                 <i class="fas fa-folder w-5 mr-3"></i>
@@ -336,17 +339,46 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
     </button>
 
     <script>
+        // Admin dropdown toggle with localStorage persistence
+        function toggleAdminDropdown() {
+            const menu = document.getElementById("admin-dropdown-menu");
+            const icon = document.getElementById("admin-dropdown-icon");
+
+            if (menu && icon) {
+                const isHidden = menu.classList.toggle("hidden");
+                icon.classList.toggle("rotate-180");
+
+                // Salvar o estado no localStorage
+                localStorage.setItem("adminDropdownOpen", isHidden ? "false" : "true");
+            }
+        }
+
+        // Restaurar estado do dropdown ao carregar a página
+        document.addEventListener("DOMContentLoaded", function() {
+            const menu = document.getElementById("admin-dropdown-menu");
+            const icon = document.getElementById("admin-dropdown-icon");
+
+            if (menu && icon) {
+                const isOpen = localStorage.getItem("adminDropdownOpen") === "true";
+
+                if (isOpen) {
+                    menu.classList.remove("hidden");
+                    icon.classList.add("rotate-180");
+                }
+            }
+        });
+
         // User dropdown toggle
         document.addEventListener("DOMContentLoaded", function() {
             const userButton = document.querySelector(".w-10.h-10.bg-gray-800");
             const userDropdown = document.getElementById("userDropdown");
-            
+
             if (userButton && userDropdown) {
                 userButton.addEventListener("click", function(e) {
                     e.stopPropagation();
                     userDropdown.classList.toggle("hidden");
                 });
-                
+
                 document.addEventListener("click", function() {
                     userDropdown.classList.add("hidden");
                 });
