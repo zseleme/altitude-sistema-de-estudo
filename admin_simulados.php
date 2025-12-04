@@ -1,11 +1,8 @@
 <?php
 session_start();
-require_once 'config/database.php';
+require_once 'includes/auth.php';
 
-if (!isset($_SESSION['usuario_id']) || $_SESSION['tipo_usuario'] !== 'admin') {
-    header('Location: login.php');
-    exit;
-}
+requireAdmin();
 
 $page_title = 'Gerenciar Simulados';
 include 'includes/header.php';

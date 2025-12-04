@@ -1,11 +1,8 @@
 <?php
 session_start();
-require_once 'config/database.php';
+require_once 'includes/auth.php';
 
-if (!isset($_SESSION['usuario_id'])) {
-    header('Location: login.php');
-    exit;
-}
+requireLogin();
 
 $page_title = 'Simulados';
 include 'includes/header.php';

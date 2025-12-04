@@ -1,17 +1,17 @@
 <?php
 session_start();
-require_once '../config/database.php';
+require_once '../includes/auth.php';
 require_once '../config/gemini.php';
 
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['usuario_id'])) {
+if (!isLoggedIn()) {
     http_response_code(401);
     echo json_encode(['error' => 'Não autorizado']);
     exit;
 }
 
-$database = new Database();
+$database = Database::getInstance();
 $db = $database->getConnection();
 
 try {
@@ -40,7 +40,7 @@ try {
 
     $stmt = $db->prepare($query);
     $stmt->bindParam(':resposta_id', $resposta_id);
-    $stmt->bindParam(':usuario_id', $_SESSION['usuario_id']);
+    $stmt->bindParam(':usuario_id', getUserId());
     $stmt->execute();
 
     $questao = $stmt->fetch(PDO::FETCH_ASSOC);

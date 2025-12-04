@@ -9,6 +9,10 @@ function isLoggedIn() {
     return isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
 }
 
+function getUserId() {
+    return $_SESSION['user_id'] ?? null;
+}
+
 function isAdmin() {
     return isLoggedIn() && ($_SESSION['is_admin'] ?? false);
 }

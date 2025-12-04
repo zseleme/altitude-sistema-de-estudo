@@ -1,16 +1,16 @@
 <?php
 session_start();
-require_once '../config/database.php';
+require_once '../includes/auth.php';
 
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['usuario_id']) || $_SESSION['tipo_usuario'] !== 'admin') {
+if (!isAdmin()) {
     http_response_code(403);
     echo json_encode(['error' => 'Acesso negado']);
     exit;
 }
 
-$database = new Database();
+$database = Database::getInstance();
 $db = $database->getConnection();
 
 $method = $_SERVER['REQUEST_METHOD'];

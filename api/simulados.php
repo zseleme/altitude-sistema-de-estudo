@@ -1,17 +1,18 @@
 <?php
 session_start();
-require_once '../config/database.php';
+require_once '../includes/auth.php';
 
 header('Content-Type: application/json');
 
-if (!isset($_SESSION['usuario_id'])) {
+if (!isLoggedIn()) {
     http_response_code(401);
     echo json_encode(['error' => 'Não autorizado']);
     exit;
 }
 
-$database = new Database();
+$database = Database::getInstance();
 $db = $database->getConnection();
+$userId = getUserId(); // ID do usuário logado
 
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
@@ -30,14 +31,14 @@ try {
                       ORDER BY s.created_at DESC";
 
             $stmt = $db->prepare($query);
-            $stmt->bindParam(':usuario_id', $_SESSION['usuario_id']);
+            $stmt->bindValue(':usuario_id', $userId, PDO::PARAM_INT);
             $stmt->execute();
 
             echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
             break;
 
         case 'criar':
-            if ($_SESSION['tipo_usuario'] !== 'admin') {
+            if (!isAdmin()) {
                 http_response_code(403);
                 echo json_encode(['error' => 'Acesso negado']);
                 exit;
@@ -66,7 +67,7 @@ try {
 
             $query = "SELECT * FROM simulados WHERE id = :id AND ativo = 1";
             $stmt = $db->prepare($query);
-            $stmt->bindParam(':id', $id);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
             $stmt->execute();
 
             $simulado = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -85,7 +86,7 @@ try {
                       ORDER BY numero_questao";
 
             $stmt = $db->prepare($query);
-            $stmt->bindParam(':id', $id);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
             $stmt->execute();
 
             $simulado['questoes'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -103,7 +104,7 @@ try {
                       ORDER BY data_inicio DESC LIMIT 1";
 
             $stmt = $db->prepare($query);
-            $stmt->bindParam(':usuario_id', $_SESSION['usuario_id']);
+            $stmt->bindParam(':usuario_id', $userId);
             $stmt->bindParam(':simulado_id', $simulado_id);
             $stmt->execute();
 
@@ -118,7 +119,7 @@ try {
                           FROM simulado_questoes WHERE simulado_id = :simulado_id";
 
                 $stmt = $db->prepare($query);
-                $stmt->bindParam(':usuario_id', $_SESSION['usuario_id']);
+                $stmt->bindParam(':usuario_id', $userId);
                 $stmt->bindParam(':simulado_id', $simulado_id);
 
                 if ($stmt->execute()) {
@@ -149,7 +150,7 @@ try {
                       resposta_usuario = :resposta, correta = :correta, tempo_resposta = :tempo";
 
             $stmt = $db->prepare($query);
-            $stmt->bindParam(':usuario_id', $_SESSION['usuario_id']);
+            $stmt->bindParam(':usuario_id', $userId);
             $stmt->bindParam(':simulado_id', $data['simulado_id']);
             $stmt->bindParam(':questao_id', $data['questao_id']);
             $stmt->bindParam(':resposta', $data['resposta']);
@@ -181,7 +182,7 @@ try {
 
             $stmt = $db->prepare($query);
             $stmt->bindParam(':tentativa_id', $tentativa_id);
-            $stmt->bindParam(':usuario_id', $_SESSION['usuario_id']);
+            $stmt->bindParam(':usuario_id', $userId);
             $stmt->execute();
 
             $resultado = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -198,7 +199,7 @@ try {
             $stmt->bindParam(':corretas', $resultado['corretas']);
             $stmt->bindParam(':total', $resultado['total']);
             $stmt->bindParam(':tentativa_id', $tentativa_id);
-            $stmt->bindParam(':usuario_id', $_SESSION['usuario_id']);
+            $stmt->bindParam(':usuario_id', $userId);
             $stmt->execute();
 
             echo json_encode([
@@ -219,7 +220,7 @@ try {
 
             $stmt = $db->prepare($query);
             $stmt->bindParam(':tentativa_id', $tentativa_id);
-            $stmt->bindParam(':usuario_id', $_SESSION['usuario_id']);
+            $stmt->bindParam(':usuario_id', $userId);
             $stmt->execute();
 
             $tentativa = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -240,7 +241,7 @@ try {
                       ORDER BY q.numero_questao";
 
             $stmt = $db->prepare($query);
-            $stmt->bindParam(':usuario_id', $_SESSION['usuario_id']);
+            $stmt->bindParam(':usuario_id', $userId);
             $stmt->bindParam(':simulado_id', $tentativa['simulado_id']);
             $stmt->execute();
 
