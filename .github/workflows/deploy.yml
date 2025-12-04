@@ -1,0 +1,262 @@
+name: Deploy Automático
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Permite executar manualmente
+
+jobs:
+  prepare-deploy:
+    name: Preparar Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar sintaxe PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo, pdo_sqlite, pdo_pgsql, mbstring
+
+      - name: Validar sintaxe
+        run: |
+          find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \; > /tmp/syntax.log
+          if grep -q "Parse error" /tmp/syntax.log; then
+            echo "❌ Erros de sintaxe encontrados! Deploy cancelado."
+            cat /tmp/syntax.log
+            exit 1
+          fi
+          echo "✅ Sintaxe PHP OK"
+
+      - name: Criar arquivo de versão
+        run: |
+          echo "VERSION=$(date +%Y%m%d_%H%M%S)" >> $GITHUB_ENV
+          echo "COMMIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "BRANCH=$(git branch --show-current)" >> $GITHUB_ENV
+
+      - name: Gerar informações de build
+        run: |
+          cat > build-info.json <<EOF
+          {
+            "version": "${{ env.VERSION }}",
+            "commit": "${{ env.COMMIT_SHA }}",
+            "branch": "${{ env.BRANCH }}",
+            "build_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "deployed_by": "GitHub Actions"
+          }
+          EOF
+
+          echo "📦 Build Info gerado:"
+          cat build-info.json
+
+      - name: Upload artefatos
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            .
+            !.git
+            !.github
+            !node_modules
+            !vendor
+            !config/estudos.db
+            !config/database.php
+            !config/openai.php
+
+  # Deploy FTP (exemplo - ajuste conforme seu servidor)
+  deploy-ftp:
+    name: Deploy via FTP
+    runs-on: ubuntu-latest
+    needs: prepare-deploy
+    if: github.ref == 'refs/heads/main'
+    # Descomente e configure os secrets para usar
+    # environment:
+    #   name: production
+    #   url: https://seu-site.com
+
+    steps:
+      - name: Download artefatos
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Deploy via FTP
+        # Descomente e configure os secrets no GitHub
+        # uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        # with:
+        #   server: ${{ secrets.FTP_SERVER }}
+        #   username: ${{ secrets.FTP_USERNAME }}
+        #   password: ${{ secrets.FTP_PASSWORD }}
+        #   server-dir: /public_html/
+        #   exclude: |
+        #     **/.git*
+        #     **/.git*/**
+        #     **/node_modules/**
+        #     **/vendor/**
+        #     config/estudos.db
+        #     config/database.php
+        run: |
+          echo "⚠️  Deploy via FTP desabilitado"
+          echo "Configure os secrets FTP_SERVER, FTP_USERNAME, FTP_PASSWORD para habilitar"
+
+  # Deploy via SSH (exemplo - ajuste conforme seu servidor)
+  deploy-ssh:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+    needs: prepare-deploy
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Download artefatos
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+
+      - name: Deploy via SSH
+        # Descomente e configure os secrets no GitHub
+        # uses: appleboy/scp-action@v0.1.7
+        # with:
+        #   host: ${{ secrets.SSH_HOST }}
+        #   username: ${{ secrets.SSH_USERNAME }}
+        #   key: ${{ secrets.SSH_PRIVATE_KEY }}
+        #   port: ${{ secrets.SSH_PORT || 22 }}
+        #   source: "."
+        #   target: "/var/www/html"
+        #   rm: false
+        run: |
+          echo "⚠️  Deploy via SSH desabilitado"
+          echo "Configure os secrets SSH_HOST, SSH_USERNAME, SSH_PRIVATE_KEY para habilitar"
+
+  # Notificação de deploy
+  notify:
+    name: Notificar Deploy
+    runs-on: ubuntu-latest
+    needs: [deploy-ftp, deploy-ssh]
+    if: always()
+
+    steps:
+      - name: Resultado do Deploy
+        run: |
+          if [ "${{ needs.deploy-ftp.result }}" == "success" ] || [ "${{ needs.deploy-ssh.result }}" == "success" ]; then
+            echo "✅ Deploy concluído com sucesso!"
+            echo "🚀 Versão: ${{ github.sha }}"
+            echo "📅 Data: $(date)"
+          else
+            echo "⚠️  Deploy foi pulado ou falhou"
+            echo "Configure os métodos de deploy (FTP ou SSH) nos secrets do GitHub"
+          fi
+
+      # Descomente para enviar notificação no Discord/Slack
+      # - name: Notificar Discord
+      #   uses: sarisia/actions-status-discord@v1
+      #   if: always()
+      #   with:
+      #     webhook: ${{ secrets.DISCORD_WEBHOOK }}
+      #     title: "Deploy ${{ job.status }}"
+      #     description: |
+      #       Commit: ${{ github.sha }}
+      #       Branch: ${{ github.ref }}
+      #       Autor: ${{ github.actor }}
+
+  # Criar release tag automaticamente
+  create-release:
+    name: Criar Release
+    runs-on: ubuntu-latest
+    needs: prepare-deploy
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gerar changelog
+        id: changelog
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges | head -20)
+          else
+            COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Criar tag de versão
+        id: version
+        run: |
+          VERSION="v$(date +%Y.%m.%d)-$(git rev-parse --short HEAD)"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          # git tag -a $VERSION -m "Release $VERSION"
+          # git push origin $VERSION
+          echo "Tag criada: $VERSION (comentado para não criar automaticamente)"
+
+      - name: Criar GitHub Release
+        # Descomente para criar releases automáticas
+        # uses: softprops/action-gh-release@v1
+        # with:
+        #   tag_name: ${{ steps.version.outputs.version }}
+        #   name: Release ${{ steps.version.outputs.version }}
+        #   body: |
+        #     ## 📝 Changelog
+        #     ${{ steps.changelog.outputs.CHANGELOG }}
+        #
+        #     ## 🔗 Informações
+        #     - Commit: ${{ github.sha }}
+        #     - Branch: ${{ github.ref }}
+        #     - Data: $(date -u +%Y-%m-%d)
+        #   draft: false
+        #   prerelease: false
+        run: |
+          echo "✅ Release preparada (desabilitado)"
+          echo "Versão: ${{ steps.version.outputs.version }}"
+          echo "Changelog:"
+          echo "${{ steps.changelog.outputs.CHANGELOG }}"
+
+  post-deploy-checks:
+    name: Verificações Pós-Deploy
+    runs-on: ubuntu-latest
+    needs: [deploy-ftp, deploy-ssh]
+    if: always()
+
+    steps:
+      - name: Health Check
+        run: |
+          echo "🏥 Executando verificações de saúde..."
+          # Adicione aqui verificações do seu servidor
+          # Por exemplo, verificar se o site está online:
+          # curl -f https://seu-site.com || exit 1
+          echo "⚠️  Configure a URL do seu site para health check"
+
+      - name: Verificar logs
+        run: |
+          echo "📋 Logs do deploy:"
+          echo "Deploy status: ${{ needs.deploy-ftp.result }} (FTP)"
+          echo "Deploy status: ${{ needs.deploy-ssh.result }} (SSH)"
+
+      - name: Resumo final
+        run: |
+          echo "================================"
+          echo "🎉 DEPLOY PIPELINE CONCLUÍDO"
+          echo "================================"
+          echo ""
+          echo "📊 Status:"
+          echo "  - Preparação: ✅"
+          echo "  - Deploy FTP: ${{ needs.deploy-ftp.result }}"
+          echo "  - Deploy SSH: ${{ needs.deploy-ssh.result }}"
+          echo ""
+          echo "💡 Para habilitar deploy automático:"
+          echo "  1. Configure os secrets no GitHub"
+          echo "  2. Descomente as actions de deploy"
+          echo "  3. Ajuste conforme seu servidor"

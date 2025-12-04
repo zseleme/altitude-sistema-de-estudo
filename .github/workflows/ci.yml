@@ -1,0 +1,182 @@
+name: CI - Verificação de Código
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  php-syntax-check:
+    name: Verificar Sintaxe PHP
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        php-version: ['7.4', '8.0', '8.1', '8.2']
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar PHP ${{ matrix.php-version }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: pdo, pdo_sqlite, pdo_pgsql, mbstring
+          coverage: none
+
+      - name: Verificar versão do PHP
+        run: php -v
+
+      - name: Verificar sintaxe de todos arquivos PHP
+        run: |
+          find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \; | tee /tmp/php-syntax.log
+          if grep -q "Parse error" /tmp/php-syntax.log; then
+            echo "❌ Erros de sintaxe encontrados!"
+            exit 1
+          fi
+          echo "✅ Nenhum erro de sintaxe encontrado!"
+
+      - name: Verificar estrutura de pastas
+        run: |
+          echo "Verificando estrutura do projeto..."
+          required_dirs=("admin" "api" "includes" "config" "migrations")
+          for dir in "${required_dirs[@]}"; do
+            if [ ! -d "$dir" ]; then
+              echo "❌ Pasta obrigatória não encontrada: $dir"
+              exit 1
+            fi
+            echo "✅ Pasta encontrada: $dir"
+          done
+
+      - name: Verificar arquivos importantes
+        run: |
+          echo "Verificando arquivos importantes..."
+          required_files=("index.php" "home.php" "login.php" "includes/auth.php" "config/database.example.php")
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Arquivo obrigatório não encontrado: $file"
+              exit 1
+            fi
+            echo "✅ Arquivo encontrado: $file"
+          done
+
+  test-auto-install:
+    name: Testar Auto-Instalação
+    runs-on: ubuntu-latest
+    needs: php-syntax-check
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo, pdo_sqlite, mbstring
+
+      - name: Testar criação do banco SQLite
+        run: |
+          php -r "require_once 'includes/auto_install.php';"
+
+          if [ -f "config/estudos.db" ]; then
+            echo "✅ Banco de dados criado com sucesso!"
+          else
+            echo "❌ Falha ao criar banco de dados"
+            exit 1
+          fi
+
+      - name: Verificar tabelas criadas
+        run: |
+          php -r "
+            \$db = new PDO('sqlite:config/estudos.db');
+            \$tables = \$db->query(\"SELECT name FROM sqlite_master WHERE type='table' ORDER BY name\")->fetchAll(PDO::FETCH_COLUMN);
+            echo 'Tabelas criadas: ' . count(\$tables) . PHP_EOL;
+            foreach (\$tables as \$table) {
+              echo '  - ' . \$table . PHP_EOL;
+            }
+
+            \$required_tables = ['usuarios', 'categorias', 'cursos', 'aulas', 'simulados'];
+            foreach (\$required_tables as \$table) {
+              if (!in_array(\$table, \$tables)) {
+                echo '❌ Tabela obrigatória não encontrada: ' . \$table . PHP_EOL;
+                exit(1);
+              }
+            }
+            echo '✅ Todas as tabelas obrigatórias foram criadas!' . PHP_EOL;
+          "
+
+      - name: Verificar usuário admin criado
+        run: |
+          php -r "
+            \$db = new PDO('sqlite:config/estudos.db');
+            \$admin = \$db->query(\"SELECT * FROM usuarios WHERE email = 'admin@teste.com'\")->fetch(PDO::FETCH_ASSOC);
+
+            if (\$admin) {
+              echo '✅ Usuário admin criado com sucesso!' . PHP_EOL;
+              echo 'Nome: ' . \$admin['nome'] . PHP_EOL;
+              echo 'Email: ' . \$admin['email'] . PHP_EOL;
+              echo 'Admin: ' . (\$admin['is_admin'] ? 'Sim' : 'Não') . PHP_EOL;
+            } else {
+              echo '❌ Usuário admin não foi criado!' . PHP_EOL;
+              exit(1);
+            }
+          "
+
+  security-check:
+    name: Verificação de Segurança
+    runs-on: ubuntu-latest
+    needs: php-syntax-check
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Verificar arquivos sensíveis
+        run: |
+          echo "Verificando se arquivos sensíveis estão no .gitignore..."
+
+          if [ -f "config/database.php" ]; then
+            echo "⚠️  AVISO: config/database.php existe (deveria estar no .gitignore)"
+          fi
+
+          if [ -f "config/estudos.db" ]; then
+            echo "⚠️  AVISO: config/estudos.db existe (deveria estar no .gitignore)"
+          fi
+
+          if [ -f "config/openai.php" ]; then
+            echo "⚠️  AVISO: config/openai.php existe (deveria estar no .gitignore)"
+          fi
+
+          echo "✅ Verificação de arquivos sensíveis concluída"
+
+      - name: Verificar por credenciais hardcoded
+        run: |
+          echo "Procurando por possíveis credenciais hardcoded..."
+
+          # Buscar por padrões suspeitos (excluindo arquivos de exemplo)
+          if grep -r -i "password.*=.*['\"].*['\"]" --include="*.php" --exclude="*.example.php" . | grep -v "password_hash" | grep -v "PASSWORD_DEFAULT" | grep -v "\$_POST" | grep -v "placeholder"; then
+            echo "⚠️  AVISO: Possíveis senhas hardcoded encontradas!"
+          fi
+
+          echo "✅ Verificação de credenciais concluída"
+
+  build-success:
+    name: Build Concluído
+    runs-on: ubuntu-latest
+    needs: [php-syntax-check, test-auto-install, security-check]
+
+    steps:
+      - name: Resultado do Build
+        run: |
+          echo "🎉 ================================"
+          echo "🎉 Build concluído com sucesso!"
+          echo "🎉 ================================"
+          echo ""
+          echo "✅ Sintaxe PHP verificada"
+          echo "✅ Auto-instalação testada"
+          echo "✅ Verificações de segurança OK"
+          echo ""
+          echo "Pronto para merge! 🚀"

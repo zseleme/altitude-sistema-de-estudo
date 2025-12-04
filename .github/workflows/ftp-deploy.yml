@@ -1,0 +1,159 @@
+name: Deploy FTP Automático
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  deploy:
+    name: Deploy via FTP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo, pdo_sqlite, pdo_pgsql, mbstring
+
+      - name: Validar sintaxe PHP
+        run: |
+          echo "🔍 Validando sintaxe PHP antes do deploy..."
+          find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \; > /tmp/syntax.log
+          if grep -q "Parse error" /tmp/syntax.log; then
+            echo "❌ Erros de sintaxe encontrados! Deploy cancelado."
+            cat /tmp/syntax.log
+            exit 1
+          fi
+          echo "✅ Sintaxe PHP OK"
+
+      - name: Definir pasta de destino
+        id: target
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "folder=/seleme.pt/" >> $GITHUB_OUTPUT
+            echo "environment=Produção" >> $GITHUB_OUTPUT
+            echo "color=green" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            echo "folder=/dev.seleme.pt/" >> $GITHUB_OUTPUT
+            echo "environment=Desenvolvimento" >> $GITHUB_OUTPUT
+            echo "color=yellow" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Exibir informações do deploy
+        run: |
+          echo "🚀 ================================"
+          echo "🚀 Deploy para ${{ steps.target.outputs.environment }}"
+          echo "🚀 ================================"
+          echo "📁 Pasta destino: ${{ steps.target.outputs.folder }}"
+          echo "🌿 Branch: ${{ github.ref_name }}"
+          echo "📝 Commit: ${{ github.sha }}"
+          echo "👤 Autor: ${{ github.actor }}"
+
+      - name: Deploy via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ steps.target.outputs.folder }}/
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/vendor/**
+            **/.env
+            **/config/estudos.db
+            **/config/database.php
+            **/config/openai.php
+            **/.github/**
+            **/tests/**
+            **/*.md
+            **/.gitignore
+
+      - name: Criar arquivo de versão no servidor
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ steps.target.outputs.folder }}/
+          local-dir: ./deploy-info/
+          dangerous-clean-slate: false
+        continue-on-error: true
+
+      - name: Gerar informações de deploy
+        run: |
+          mkdir -p deploy-info
+          cat > deploy-info/version.json <<EOF
+          {
+            "version": "$(date +%Y.%m.%d-%H%M%S)",
+            "commit": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "deployed_by": "${{ github.actor }}",
+            "environment": "${{ steps.target.outputs.environment }}"
+          }
+          EOF
+
+          cat > deploy-info/LAST_DEPLOY.txt <<EOF
+          ====================================
+          ÚLTIMO DEPLOY
+          ====================================
+          Ambiente: ${{ steps.target.outputs.environment }}
+          Branch: ${{ github.ref_name }}
+          Commit: ${{ github.sha }}
+          Data: $(date)
+          Por: ${{ github.actor }}
+          ====================================
+          EOF
+
+          echo "✅ Arquivo de versão criado"
+          cat deploy-info/version.json
+
+      - name: Upload arquivo de versão
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: ${{ steps.target.outputs.folder }}/
+          local-dir: ./deploy-info/
+          dangerous-clean-slate: false
+
+      - name: Resumo do Deploy
+        if: success()
+        run: |
+          echo "✅ ================================"
+          echo "✅ Deploy concluído com sucesso!"
+          echo "✅ ================================"
+          echo ""
+          echo "📊 Detalhes:"
+          echo "  • Ambiente: ${{ steps.target.outputs.environment }}"
+          echo "  • Pasta: ${{ steps.target.outputs.folder }}"
+          echo "  • Branch: ${{ github.ref_name }}"
+          echo "  • Commit: $(git log -1 --pretty=format:'%h - %s')"
+          echo "  • Arquivos enviados: ✓"
+          echo ""
+          echo "🌐 Acesse:"
+          echo "  • Produção: https://seu-site.com"
+          echo "  • Desenvolvimento: https://dev.seu-site.com"
+
+      - name: Notificar erro
+        if: failure()
+        run: |
+          echo "❌ ================================"
+          echo "❌ Deploy falhou!"
+          echo "❌ ================================"
+          echo ""
+          echo "Verifique os logs acima para detalhes do erro."
+          echo "Possíveis causas:"
+          echo "  • Credenciais FTP incorretas"
+          echo "  • Servidor FTP offline"
+          echo "  • Permissões de pasta incorretas"
+          echo "  • Erro de sintaxe no código"
