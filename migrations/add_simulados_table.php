@@ -1,9 +1,34 @@
 <?php
-require_once __DIR__ . '/../config/database.php';
+// Habilitar exibição de erros para debug
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+header('Content-Type: text/html; charset=utf-8');
+
+echo "<!DOCTYPE html>
+<html>
+<head>
+    <title>Migração - Simulados</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .success { color: green; padding: 10px; background: #d4edda; margin: 10px 0; border-radius: 5px; }
+        .error { color: red; padding: 10px; background: #f8d7da; margin: 10px 0; border-radius: 5px; }
+        .info { padding: 10px; background: #d1ecf1; margin: 10px 0; border-radius: 5px; }
+        h1 { color: #333; }
+    </style>
+</head>
+<body>
+<h1>Migração do Sistema de Simulados</h1>";
 
 try {
-    $database = new Database();
+    require_once __DIR__ . '/../config/database.php';
+
+    echo "<div class='info'>Conectando ao banco de dados...</div>";
+
+    $database = Database::getInstance();
     $db = $database->getConnection();
+
+    echo "<div class='success'>Conexão estabelecida com sucesso!</div>";
 
     // Tabela de simulados
     $query = "CREATE TABLE IF NOT EXISTS simulados (
@@ -21,9 +46,10 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
     $db->exec($query);
-    echo "Tabela 'simulados' criada com sucesso!\n";
+    echo "<div class='success'>✓ Tabela 'simulados' criada com sucesso!</div>";
 
     // Tabela de questões
+    echo "<div class='info'>Criando tabela 'simulado_questoes'...</div>";
     $query = "CREATE TABLE IF NOT EXISTS simulado_questoes (
         id INT AUTO_INCREMENT PRIMARY KEY,
         simulado_id INT NOT NULL,
@@ -45,9 +71,10 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
     $db->exec($query);
-    echo "Tabela 'simulado_questoes' criada com sucesso!\n";
+    echo "<div class='success'>✓ Tabela 'simulado_questoes' criada com sucesso!</div>";
 
     // Tabela de respostas dos alunos
+    echo "<div class='info'>Criando tabela 'simulado_respostas'...</div>";
     $query = "CREATE TABLE IF NOT EXISTS simulado_respostas (
         id INT AUTO_INCREMENT PRIMARY KEY,
         usuario_id INT NOT NULL,
@@ -67,9 +94,10 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
     $db->exec($query);
-    echo "Tabela 'simulado_respostas' criada com sucesso!\n";
+    echo "<div class='success'>✓ Tabela 'simulado_respostas' criada com sucesso!</div>";
 
     // Tabela de tentativas (para rastrear quando o usuário iniciou/finalizou um simulado)
+    echo "<div class='info'>Criando tabela 'simulado_tentativas'...</div>";
     $query = "CREATE TABLE IF NOT EXISTS simulado_tentativas (
         id INT AUTO_INCREMENT PRIMARY KEY,
         usuario_id INT NOT NULL,
@@ -88,10 +116,23 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
     $db->exec($query);
-    echo "Tabela 'simulado_tentativas' criada com sucesso!\n";
+    echo "<div class='success'>✓ Tabela 'simulado_tentativas' criada com sucesso!</div>";
 
-    echo "\nMigração concluída com sucesso!\n";
+    echo "<div class='success' style='font-size: 18px; font-weight: bold; margin-top: 20px;'>
+        ✓ Migração concluída com sucesso!<br>
+        Todas as 4 tabelas foram criadas.
+    </div>";
 
 } catch(PDOException $e) {
-    echo "Erro na migração: " . $e->getMessage() . "\n";
+    echo "<div class='error'>
+        <strong>Erro na migração:</strong><br>
+        " . htmlspecialchars($e->getMessage()) . "
+    </div>";
+} catch(Exception $e) {
+    echo "<div class='error'>
+        <strong>Erro geral:</strong><br>
+        " . htmlspecialchars($e->getMessage()) . "
+    </div>";
 }
+
+echo "</body></html>";
