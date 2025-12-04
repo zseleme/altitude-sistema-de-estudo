@@ -1,170 +1,139 @@
 <?php
-session_start();
-require_once 'includes/auth.php';
-
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/includes/auth.php';
 requireLogin();
 
 $tentativa_id = $_GET['tentativa'] ?? 0;
 
-$page_title = 'Resultado do Simulado';
-include 'includes/header.php';
-?>
-
-<style>
-.resultado-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 15px;
-    padding: 30px;
-    margin-bottom: 30px;
-}
-
-.stat-card {
-    text-align: center;
-    padding: 20px;
-    border-radius: 10px;
-    background: white;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.questao-review {
-    border-left: 4px solid #e0e0e0;
-    padding: 15px;
-    margin-bottom: 20px;
-    border-radius: 8px;
-    background: #f8f9fa;
-}
-
-.questao-review.correta {
-    border-left-color: #28a745;
-    background: #d4edda;
-}
-
-.questao-review.incorreta {
-    border-left-color: #dc3545;
-    background: #f8d7da;
-}
-
-.analise-resumo {
-    background: #fff3cd;
-    border-left: 4px solid #ffc107;
-    padding: 15px;
-    border-radius: 8px;
-    margin-top: 15px;
-}
-</style>
-
-<div class="container py-4">
-    <div id="loadingArea">
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary" role="status"></div>
-            <p class="mt-3">Carregando resultado...</p>
-        </div>
+$content = '
+<div class="max-w-7xl mx-auto">
+    <!-- Loading -->
+    <div id="loadingArea" class="text-center py-12">
+        <i class="fas fa-spinner fa-spin text-6xl text-blue-600 mb-4"></i>
+        <p class="text-gray-600">Carregando resultado...</p>
     </div>
 
+    <!-- Resultado -->
     <div id="resultadoArea" style="display: none;">
-        <!-- Header com estatísticas gerais -->
-        <div class="resultado-header">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h2 class="mb-2" id="tituloSimulado"></h2>
-                    <p class="mb-0 opacity-75" id="descricaoSimulado"></p>
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2" id="tituloSimulado"></h1>
+            <p class="text-gray-600" id="descricaoSimulado"></p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-3xl font-bold" id="notaFinal">0%</div>
+                        <div class="text-sm opacity-90">Nota Final</div>
+                    </div>
+                    <div class="h-10 w-10 bg-white/20 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-star text-lg"></i>
+                    </div>
                 </div>
-                <div class="col-md-4 text-end">
-                    <h1 class="display-3 mb-0" id="notaFinal"></h1>
-                    <small>Nota Final</small>
+            </div>
+
+            <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-3xl font-bold" id="totalCorretas">0</div>
+                        <div class="text-sm opacity-90">Acertos</div>
+                    </div>
+                    <div class="h-10 w-10 bg-white/20 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-check-circle text-lg"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-3xl font-bold" id="totalErradas">0</div>
+                        <div class="text-sm opacity-90">Erros</div>
+                    </div>
+                    <div class="h-10 w-10 bg-white/20 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-times-circle text-lg"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-3xl font-bold" id="tempoTotal">-</div>
+                        <div class="text-sm opacity-90">Tempo</div>
+                    </div>
+                    <div class="h-10 w-10 bg-white/20 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-clock text-lg"></i>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Cards de estatísticas -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="stat-card bg-success text-white">
-                    <h3 id="totalCorretas">0</h3>
-                    <small>Acertos</small>
-                </div>
+        <!-- Análise de Desempenho -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                <i class="fas fa-chart-line text-blue-600 mr-2"></i>
+                Análise de Desempenho
+            </h2>
+            <div class="w-full bg-gray-200 rounded-full h-8 mb-4 overflow-hidden">
+                <div class="bg-green-600 h-8 flex items-center justify-center text-white font-semibold text-sm transition-all duration-500" id="progressCorretas" style="width: 0%"></div>
             </div>
-            <div class="col-md-3">
-                <div class="stat-card bg-danger text-white">
-                    <h3 id="totalErradas">0</h3>
-                    <small>Erros</small>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="stat-card bg-primary text-white">
-                    <h3 id="totalQuestoes">0</h3>
-                    <small>Total de Questões</small>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="stat-card bg-info text-white">
-                    <h3 id="tempoTotal">-</h3>
-                    <small>Tempo Total</small>
-                </div>
-            </div>
-        </div>
-
-        <!-- Análise geral -->
-        <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="bi bi-graph-up"></i> Análise de Desempenho</h5>
-            </div>
-            <div class="card-body">
-                <div class="progress mb-3" style="height: 30px;">
-                    <div class="progress-bar bg-success" id="progressCorretas" style="width: 0%"></div>
-                </div>
-                <div id="analiseGeral"></div>
-            </div>
+            <div id="analiseGeral"></div>
         </div>
 
         <!-- Filtros -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <div class="btn-group" role="group">
-                    <button class="btn btn-outline-primary active" onclick="filtrarQuestoes('todas')">
-                        Todas
-                    </button>
-                    <button class="btn btn-outline-success" onclick="filtrarQuestoes('corretas')">
-                        Apenas Corretas
-                    </button>
-                    <button class="btn btn-outline-danger" onclick="filtrarQuestoes('incorretas')">
-                        Apenas Incorretas
-                    </button>
-                </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <div class="flex flex-wrap gap-3">
+                <button onclick="filtrarQuestoes(\'todas\')" class="filtro-btn px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                    Todas
+                </button>
+                <button onclick="filtrarQuestoes(\'corretas\')" class="filtro-btn px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors">
+                    Apenas Corretas
+                </button>
+                <button onclick="filtrarQuestoes(\'incorretas\')" class="filtro-btn px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors">
+                    Apenas Incorretas
+                </button>
             </div>
         </div>
 
-        <!-- Revisão das questões -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-list-check"></i> Revisão Detalhada</h5>
+        <!-- Revisão Detalhada -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-xl font-bold text-gray-900 flex items-center">
+                    <i class="fas fa-list-check text-blue-600 mr-2"></i>
+                    Revisão Detalhada
+                </h2>
             </div>
-            <div class="card-body" id="revisaoQuestoes">
-                <!-- Carregado via JavaScript -->
+            <div class="p-6" id="revisaoQuestoes">
+                <!-- Carregado via JS -->
             </div>
         </div>
 
-        <!-- Botões de ação -->
-        <div class="text-center mt-4">
-            <button class="btn btn-primary btn-lg" onclick="window.location.href='simulados.php'">
-                <i class="bi bi-arrow-left"></i> Voltar aos Simulados
-            </button>
-            <button class="btn btn-outline-primary btn-lg" onclick="window.print()">
-                <i class="bi bi-printer"></i> Imprimir Resultado
+        <!-- Botões de Ação -->
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+            <a href="simulados.php" class="inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                <i class="fas fa-arrow-left mr-2"></i>
+                Voltar aos Simulados
+            </a>
+            <button onclick="window.print()" class="inline-flex items-center justify-center px-6 py-3 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors">
+                <i class="fas fa-print mr-2"></i>
+                Imprimir
             </button>
         </div>
     </div>
 </div>
 
 <script>
-const tentativaId = <?php echo $tentativa_id; ?>;
+const tentativaId = ' . $tentativa_id . ';
 let resultado = null;
-let filtroAtual = 'todas';
+let filtroAtual = \'todas\';
 
-document.addEventListener('DOMContentLoaded', function() {
-    carregarResultado();
-});
+document.addEventListener(\'DOMContentLoaded\', carregarResultado);
 
 async function carregarResultado() {
     try {
@@ -172,134 +141,123 @@ async function carregarResultado() {
         resultado = await response.json();
 
         if (resultado.error) {
-            alert('Erro: ' + resultado.error);
-            window.location.href = 'simulados.php';
+            alert(\'Erro: \' + resultado.error);
+            window.location.href = \'simulados.php\';
             return;
         }
 
         exibirResultado();
-
     } catch (error) {
-        console.error('Erro ao carregar resultado:', error);
-        alert('Erro ao carregar resultado');
+        console.error(\'Erro:\', error);
+        alert(\'Erro ao carregar resultado\');
     }
 }
 
 function exibirResultado() {
-    // Header
-    document.getElementById('tituloSimulado').textContent = resultado.titulo;
-    document.getElementById('descricaoSimulado').textContent = resultado.descricao || '';
-    document.getElementById('notaFinal').textContent = resultado.nota.toFixed(1) + '%';
+    document.getElementById(\'tituloSimulado\').textContent = resultado.titulo;
+    document.getElementById(\'descricaoSimulado\').textContent = resultado.descricao || \'\';
+    document.getElementById(\'notaFinal\').textContent = resultado.nota.toFixed(1) + \'%\';
 
-    // Estatísticas
     const corretas = resultado.questoes_corretas;
     const total = resultado.questoes_totais;
     const erradas = total - corretas;
 
-    document.getElementById('totalCorretas').textContent = corretas;
-    document.getElementById('totalErradas').textContent = erradas;
-    document.getElementById('totalQuestoes').textContent = total;
+    document.getElementById(\'totalCorretas\').textContent = corretas;
+    document.getElementById(\'totalErradas\').textContent = erradas;
 
-    // Tempo
     if (resultado.data_inicio && resultado.data_fim) {
         const inicio = new Date(resultado.data_inicio);
         const fim = new Date(resultado.data_fim);
         const diffMin = Math.floor((fim - inicio) / 1000 / 60);
-        document.getElementById('tempoTotal').textContent = diffMin + ' min';
+        document.getElementById(\'tempoTotal\').textContent = diffMin + \' min\';
     }
 
-    // Progress bar
     const percentCorretas = (corretas / total) * 100;
-    document.getElementById('progressCorretas').style.width = percentCorretas + '%';
-    document.getElementById('progressCorretas').textContent = percentCorretas.toFixed(1) + '%';
+    document.getElementById(\'progressCorretas\').style.width = percentCorretas + \'%\';
+    document.getElementById(\'progressCorretas\').textContent = percentCorretas.toFixed(1) + \'%\';
 
-    // Análise geral
-    let analise = '';
+    let analise = \'\';
     if (resultado.nota >= 70) {
-        analise = '<div class="alert alert-success"><strong>Parabéns!</strong> Excelente desempenho. Continue assim!</div>';
+        analise = \'<div class="bg-green-50 border-l-4 border-green-500 p-4 rounded"><p class="text-green-900"><strong>Parabéns!</strong> Excelente desempenho. Continue assim!</p></div>\';
     } else if (resultado.nota >= 50) {
-        analise = '<div class="alert alert-warning"><strong>Bom trabalho!</strong> Você está no caminho certo. Revise os erros e tente novamente.</div>';
+        analise = \'<div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded"><p class="text-yellow-900"><strong>Bom trabalho!</strong> Você está no caminho certo. Revise os erros e tente novamente.</p></div>\';
     } else {
-        analise = '<div class="alert alert-danger"><strong>Precisa melhorar.</strong> Revise o conteúdo e pratique mais. Não desista!</div>';
+        analise = \'<div class="bg-red-50 border-l-4 border-red-500 p-4 rounded"><p class="text-red-900"><strong>Precisa melhorar.</strong> Revise o conteúdo e pratique mais. Não desista!</p></div>\';
     }
-    document.getElementById('analiseGeral').innerHTML = analise;
+    document.getElementById(\'analiseGeral\').innerHTML = analise;
 
-    // Carregar questões
     exibirQuestoes();
 
-    // Mostrar resultado
-    document.getElementById('loadingArea').style.display = 'none';
-    document.getElementById('resultadoArea').style.display = 'block';
+    document.getElementById(\'loadingArea\').style.display = \'none\';
+    document.getElementById(\'resultadoArea\').style.display = \'block\';
 }
 
 function exibirQuestoes() {
-    const container = document.getElementById('revisaoQuestoes');
-    container.innerHTML = '';
+    const container = document.getElementById(\'revisaoQuestoes\');
+    container.innerHTML = \'\';
 
     resultado.respostas.forEach((resp, index) => {
-        if (filtroAtual === 'corretas' && !resp.correta) return;
-        if (filtroAtual === 'incorretas' && resp.correta) return;
+        if (filtroAtual === \'corretas\' && !resp.correta) return;
+        if (filtroAtual === \'incorretas\' && resp.correta) return;
 
-        const div = document.createElement('div');
-        div.className = `questao-review ${resp.correta ? 'correta' : 'incorreta'}`;
+        const div = document.createElement(\'div\');
+        div.className = `border-l-4 p-4 rounded-lg mb-4 ${resp.correta ? \'bg-green-50 border-green-500\' : \'bg-red-50 border-red-500\'}`;
         div.innerHTML = `
-            <div class="d-flex justify-content-between align-items-start mb-3">
-                <h5>
-                    <span class="badge ${resp.correta ? 'bg-success' : 'bg-danger'}">
-                        ${resp.correta ? '✓ Correta' : '✗ Incorreta'}
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4">
+                <h3 class="font-bold text-gray-900 mb-2 sm:mb-0">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold mr-2 ${resp.correta ? \'bg-green-600 text-white\' : \'bg-red-600 text-white\'}">
+                        ${resp.correta ? \'✓ Correta\' : \'✗ Incorreta\'}
                     </span>
                     Questão ${resp.numero_questao}
-                </h5>
-                ${resp.tempo_resposta ? `<small class="text-muted"><i class="bi bi-clock"></i> ${resp.tempo_resposta}s</small>` : ''}
+                </h3>
+                ${resp.tempo_resposta ? `<span class="text-sm text-gray-600"><i class="fas fa-clock mr-1"></i>${resp.tempo_resposta}s</span>` : \'\'}
             </div>
 
-            <p class="mb-3"><strong>${resp.enunciado}</strong></p>
+            <p class="text-gray-900 font-medium mb-4">${resp.enunciado}</p>
 
-            <div class="row">
-                <div class="col-md-6">
-                    ${criarAlternativaRevisao('A', resp.alternativa_a, resp)}
-                    ${criarAlternativaRevisao('B', resp.alternativa_b, resp)}
-                    ${criarAlternativaRevisao('C', resp.alternativa_c, resp)}
-                </div>
-                <div class="col-md-6">
-                    ${criarAlternativaRevisao('D', resp.alternativa_d, resp)}
-                    ${resp.alternativa_e ? criarAlternativaRevisao('E', resp.alternativa_e, resp) : ''}
-                </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                ${criarAlternativaRevisao(\'A\', resp.alternativa_a, resp)}
+                ${criarAlternativaRevisao(\'B\', resp.alternativa_b, resp)}
+                ${criarAlternativaRevisao(\'C\', resp.alternativa_c, resp)}
+                ${criarAlternativaRevisao(\'D\', resp.alternativa_d, resp)}
+                ${resp.alternativa_e ? criarAlternativaRevisao(\'E\', resp.alternativa_e, resp) : \'\'}
             </div>
 
             ${resp.explicacao ? `
-                <div class="alert alert-info mt-3 mb-2">
-                    <strong><i class="bi bi-info-circle"></i> Explicação:</strong><br>
-                    ${resp.explicacao}
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded mb-3">
+                    <p class="text-blue-900 font-semibold mb-2"><i class="fas fa-info-circle mr-1"></i> Explicação:</p>
+                    <p class="text-blue-800">${resp.explicacao}</p>
                 </div>
-            ` : ''}
+            ` : \'\'}
 
             ${!resp.correta && resp.analise_ia ? `
-                <div class="analise-resumo">
-                    <strong><i class="bi bi-lightbulb"></i> Análise do Professor:</strong><br>
-                    <div style="white-space: pre-wrap;" class="mt-2">${resp.analise_ia}</div>
+                <div class="bg-purple-50 border-l-4 border-purple-500 p-4 rounded">
+                    <p class="text-purple-900 font-semibold mb-2"><i class="fas fa-lightbulb mr-1"></i> Análise do Professor:</p>
+                    <div class="text-purple-900 whitespace-pre-wrap">${resp.analise_ia}</div>
                 </div>
-            ` : ''}
+            ` : \'\'}
         `;
 
         container.appendChild(div);
     });
 
-    if (container.innerHTML === '') {
-        container.innerHTML = '<p class="text-center text-muted">Nenhuma questão encontrada com este filtro.</p>';
+    if (container.innerHTML === \'\') {
+        container.innerHTML = \'<p class="text-center text-gray-500 py-8">Nenhuma questão encontrada com este filtro.</p>\';
     }
 }
 
 function criarAlternativaRevisao(letra, texto, resp) {
-    let classes = 'p-2 mb-1 rounded';
-    let icone = '';
+    let classes = \'p-3 rounded-lg border-2 \';
+    let icone = \'\';
 
     if (letra === resp.resposta_correta) {
-        classes += ' bg-success bg-opacity-25 border border-success';
-        icone = ' <i class="bi bi-check-circle-fill text-success"></i>';
+        classes += \'bg-green-100 border-green-500\';
+        icone = \'<i class="fas fa-check-circle text-green-600 ml-2"></i>\';
     } else if (letra === resp.resposta_usuario) {
-        classes += ' bg-danger bg-opacity-25 border border-danger';
-        icone = ' <i class="bi bi-x-circle-fill text-danger"></i>';
+        classes += \'bg-red-100 border-red-500\';
+        icone = \'<i class="fas fa-times-circle text-red-600 ml-2"></i>\';
+    } else {
+        classes += \'bg-gray-50 border-gray-200\';
     }
 
     return `<div class="${classes}"><strong>${letra})</strong> ${texto}${icone}</div>`;
@@ -308,14 +266,18 @@ function criarAlternativaRevisao(letra, texto, resp) {
 function filtrarQuestoes(tipo) {
     filtroAtual = tipo;
 
-    // Atualizar botões
-    document.querySelectorAll('.btn-group button').forEach(btn => {
-        btn.classList.remove('active');
+    document.querySelectorAll(\'.filtro-btn\').forEach(btn => {
+        btn.classList.remove(\'bg-blue-600\', \'text-white\');
+        btn.classList.add(\'bg-gray-200\', \'text-gray-700\');
     });
-    event.target.classList.add('active');
+
+    event.target.classList.remove(\'bg-gray-200\', \'text-gray-700\');
+    event.target.classList.add(\'bg-blue-600\', \'text-white\');
 
     exibirQuestoes();
 }
-</script>
+</script>';
 
-<?php include 'includes/footer.php'; ?>
+require_once __DIR__ . '/includes/layout.php';
+renderLayout('Resultado do Simulado', $content, true, true);
+?>
