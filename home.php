@@ -45,7 +45,7 @@ $content = '
                         <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <div class="text-2xl font-bold">' . gmdate("H:i", $userStats['tempo_estudado'] * 60) . '</div>
+                                    <div class="text-2xl font-bold">' . floor($userStats['tempo_estudado'] / 60) . 'h ' . ($userStats['tempo_estudado'] % 60) . 'm</div>
                                     <div class="text-sm opacity-90">Tempo Estudado</div>
                                 </div>
                                 <div class="h-10 w-10 bg-white/20 rounded-lg flex items-center justify-center">

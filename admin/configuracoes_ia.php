@@ -25,6 +25,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
             'gemini_model' => trim($_POST['gemini_model'] ?? 'gemini-2.5-flash'),
             'groq_api_key' => trim($_POST['groq_api_key'] ?? ''),
             'groq_model' => trim($_POST['groq_model'] ?? 'llama-3.1-8b-instant'),
+            'youtube_api_key' => trim($_POST['youtube_api_key'] ?? ''),
             'ai_temperature' => trim($_POST['ai_temperature'] ?? '0.3'),
             'ai_max_tokens' => trim($_POST['ai_max_tokens'] ?? '2000')
         ];
@@ -51,6 +52,9 @@ $configs = [];
 foreach ($configsRaw as $config) {
     $configs[$config['chave']] = $config['valor'];
 }
+
+// Verificar se tem YouTube API Key configurada
+$youtubeConfigured = !empty($configs['youtube_api_key']);
 
 // Verificar status da configuração
 $provider = $configs['ai_provider'] ?? 'gemini';
@@ -232,11 +236,39 @@ $content = '
                         </div>
                     </div>
 
+                    <!-- YouTube API Key -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h2 class="text-xl font-semibold text-gray-900 mb-4">
+                            <i class="fab fa-youtube mr-2 text-red-600"></i>
+                            YouTube Data API
+                        </h2>
+                        <p class="text-gray-600 mb-4 text-sm">
+                            Necessário para importar playlists do YouTube automaticamente.
+                            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                Obter chave <i class="fas fa-external-link-alt ml-1"></i>
+                            </a>
+                        </p>
+
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Chave da API do YouTube
+                                ' . ($youtubeConfigured ? '<span class="text-green-600 ml-2"><i class="fas fa-check-circle"></i> Configurado</span>' : '') . '
+                            </label>
+                            <input type="password" name="youtube_api_key" value="' . htmlspecialchars($configs['youtube_api_key'] ?? '') . '"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                   placeholder="AIza...">
+                            <p class="mt-2 text-xs text-gray-500">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Ative a "YouTube Data API v3" no Google Cloud Console e crie uma chave de API.
+                            </p>
+                        </div>
+                    </div>
+
                     <!-- API Keys Configuration -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h2 class="text-xl font-semibold text-gray-900 mb-4">
                             <i class="fas fa-key mr-2 text-blue-600"></i>
-                            Chaves de API
+                            Chaves de API - Inteligência Artificial
                         </h2>
 
                         <div class="space-y-6">

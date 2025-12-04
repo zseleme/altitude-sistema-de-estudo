@@ -132,9 +132,21 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                         </a>
                     </li>
                     <li>
+                        <a href="/cursos_arquivados.php" class="flex items-center px-4 py-3 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors">
+                            <i class="fas fa-archive w-5 mr-3"></i>
+                            <span>Cursos Arquivados</span>
+                        </a>
+                    </li>
+                    <li>
                         <a href="/certificados.php" class="flex items-center px-4 py-3 text-white hover:bg-gray-700 rounded-lg transition-colors">
                             <i class="fas fa-certificate w-5 mr-3"></i>
                             <span>Certificados</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/simulados.php" class="flex items-center px-4 py-3 text-white hover:bg-gray-700 rounded-lg transition-colors">
+                            <i class="fas fa-file-alt w-5 mr-3"></i>
+                            <span>Simulados</span>
                         </a>
                     </li>
 
@@ -198,6 +210,12 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                             <a href="/admin/configuracoes_ia.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
                                 <i class="fas fa-robot w-5 mr-3"></i>
                                 <span>Configurações de IA</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/admin_simulados.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
+                                <i class="fas fa-file-alt w-5 mr-3"></i>
+                                <span>Simulados</span>
                             </a>
                         </li>
                     </ul>
