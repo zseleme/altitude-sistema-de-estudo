@@ -3,6 +3,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Auto-instalação do banco de dados se necessário
+require_once __DIR__ . '/auto_install.php';
+
 require_once __DIR__ . '/../config/database.php';
 
 function isLoggedIn() {

@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once '../includes/auth.php';
-require_once '../config/gemini.php';
+require_once '../includes/ai_helper.php';
 
 header('Content-Type: application/json');
 
@@ -97,51 +97,57 @@ try {
         $texto_alternativas .= "\n{$letra}) {$texto}{$marcador}";
     }
 
-    // Criar prompt para a IA
-    $prompt = "Você é um professor de cursinho extremamente experiente e didático, especializado em ajudar alunos a compreenderem seus erros e memorizarem a lógica das questões através de técnicas mnemônicas e analogias criativas.
-
-CONTEXTO:
-- Disciplina: {$questao['disciplina']}
-- Simulado: {$questao['simulado_titulo']}
-- Nível: {$questao['nivel_dificuldade']}
+    // Criar prompt para a IA (otimizado para ser mais conciso)
+    $prompt = "Você é um professor experiente. Analise o erro do aluno de forma concisa.
 
 QUESTÃO:
 {$questao['enunciado']}
 
 ALTERNATIVAS:{$texto_alternativas}
 
-O aluno marcou a alternativa {$questao['resposta_usuario']}, mas a resposta correta é {$questao['resposta_correta']}.
+O aluno marcou {$questao['resposta_usuario']}, mas o correto é {$questao['resposta_correta']}.
 
-SUA MISSÃO:
-Forneça uma análise pedagógica que ajude o aluno a:
-1. Entender POR QUE errou (qual foi o raciocínio equivocado)
-2. Compreender a LÓGICA da resposta correta
-3. MEMORIZAR o conceito através de:
-   - Uma técnica mnemônica criativa
-   - Uma analogia do dia a dia
-   - Um macete ou regra prática
+Forneça uma análise BREVE e DIRETA em 3 partes:
 
-ESTRUTURA DA RESPOSTA:
-📌 **Por que você errou:**
-[Explique gentilmente o erro de raciocínio]
+📌 **Por que errou:**
+[2-3 linhas explicando o erro]
 
-💡 **A lógica correta:**
-[Explique o conceito de forma clara e objetiva]
+💡 **Resposta correta:**
+[2-3 linhas explicando a lógica]
 
-🎯 **Para nunca mais esquecer:**
-[Técnica mnemônica, analogia ou macete memorável]
+🎯 **Dica para memorizar:**
+[1-2 linhas com macete ou analogia]
 
-⚡ **Dica rápida:**
-[Uma frase curta que resume tudo]
+Seja direto, claro e motivador. Máximo 200 palavras.";
 
-Seja empático, motivador e use linguagem simples. Foque em fazer o aluno ENTENDER e MEMORIZAR, não apenas decorar.";
+    // Verificar se a IA está configurada
+    if (!AIHelper::isConfigured()) {
+        echo json_encode([
+            'success' => true,
+            'analise' => "⚙️ **Análise por IA não disponível**\n\nA análise automática por IA ainda não foi configurada pelo administrador do sistema.\n\nEnquanto isso, revise a explicação da questão e tente entender onde errou.",
+            'not_configured' => true
+        ]);
+        exit;
+    }
 
-    // Chamar a API do Gemini
-    $gemini = new GeminiAPI();
-    $analise = $gemini->generateText($prompt);
+    // Chamar a IA
+    try {
+        $aiHelper = new AIHelper();
+        $result = $aiHelper->analyzeQuestion($prompt);
 
-    if (!$analise) {
-        throw new Exception('Erro ao gerar análise pela IA');
+        if (!isset($result['review'])) {
+            throw new Exception('Erro ao gerar análise pela IA');
+        }
+
+        $analise = $result['review'];
+    } catch (Exception $aiError) {
+        // Se houver erro na IA, retornar mensagem amigável
+        echo json_encode([
+            'success' => true,
+            'analise' => "⚠️ **Análise temporariamente indisponível**\n\nNão foi possível gerar a análise automática no momento.\n\n" . $aiError->getMessage() . "\n\nRevise a explicação da questão e tente entender onde errou.",
+            'ai_error' => true
+        ]);
+        exit;
     }
 
     // Salvar análise no banco

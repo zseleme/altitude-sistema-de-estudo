@@ -217,12 +217,17 @@ function carregarQuestao(index) {
     }
 
     document.getElementById(\'btnAnterior\').disabled = index === 0;
-    document.getElementById(\'btnResponder\').disabled = !respostas[questao.id];
     document.getElementById(\'btnProxima\').style.display = \'none\';
     document.getElementById(\'btnFinalizar\').style.display = \'none\';
 
     if (respostas[questao.id]?.respondida) {
+        // Questão já foi respondida - mostrar resultado
+        document.getElementById(\'btnResponder\').style.display = \'none\';
         mostrarResultadoQuestao(respostas[questao.id]);
+    } else {
+        // Questão não foi respondida - mostrar botão responder
+        document.getElementById(\'btnResponder\').style.display = \'inline-block\';
+        document.getElementById(\'btnResponder\').disabled = !respostas[questao.id];
     }
 
     tempoInicio = Date.now();
@@ -306,6 +311,8 @@ async function responderQuestao() {
             if (!result.correta) {
                 carregarAnaliseIA(result.resposta_id);
             }
+        } else {
+            alert(\'Erro ao processar resposta: \' + (result.error || \'Erro desconhecido\'));
         }
     } catch (error) {
         console.error(\'Erro:\', error);

@@ -59,7 +59,7 @@ try {
         ['groq_api_key', '', 'Chave da API Groq', 'password'],
         ['groq_model', 'llama-3.1-8b-instant', 'Modelo Groq', 'text'],
         ['ai_temperature', '0.3', 'Temperatura (0.0-1.0)', 'number'],
-        ['ai_max_tokens', '2000', 'Máximo de tokens', 'number']
+        ['ai_max_tokens', '4000', 'Máximo de tokens', 'number']
     ];
 
     foreach ($configsPadrao as $config) {

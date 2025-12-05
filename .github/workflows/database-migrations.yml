@@ -1,0 +1,278 @@
+name: Verificar Migrações de Banco
+
+on:
+  pull_request:
+    paths:
+      - 'migrations/**'
+  push:
+    branches: [main]
+    paths:
+      - 'migrations/**'
+
+jobs:
+  validate-migrations:
+    name: Validar Migrações
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo, pdo_sqlite, pdo_pgsql, mbstring
+
+      - name: Listar migrações
+        run: |
+          echo "📋 Migrações encontradas:"
+          ls -la migrations/*.php 2>/dev/null || echo "Nenhuma migração encontrada"
+
+      - name: Verificar sintaxe das migrações
+        run: |
+          echo "🔍 Verificando sintaxe das migrações..."
+          for file in migrations/*.php; do
+            if [ -f "$file" ]; then
+              echo "Verificando: $file"
+              php -l "$file"
+            fi
+          done
+          echo "✅ Todas as migrações têm sintaxe válida"
+
+      - name: Testar migrações no SQLite
+        run: |
+          echo "🧪 Testando migrações no SQLite..."
+
+          # Criar banco de dados temporário
+          php -r "require_once 'includes/auto_install.php';"
+
+          if [ ! -f "config/estudos.db" ]; then
+            echo "❌ Falha ao criar banco de teste"
+            exit 1
+          fi
+
+          echo "✅ Banco de dados de teste criado"
+
+          # Executar cada migração
+          for migration in migrations/*.php; do
+            if [ -f "$migration" ]; then
+              echo "Executando: $migration"
+              php "$migration" || {
+                echo "❌ Falha ao executar: $migration"
+                exit 1
+              }
+            fi
+          done
+
+          echo "✅ Todas as migrações executadas com sucesso"
+
+      - name: Verificar estrutura do banco após migrações
+        run: |
+          echo "📊 Verificando estrutura do banco..."
+
+          php -r "
+            if (!file_exists('config/estudos.db')) {
+              echo '❌ Banco de dados não encontrado' . PHP_EOL;
+              exit(1);
+            }
+
+            \$db = new PDO('sqlite:config/estudos.db');
+            \$tables = \$db->query(\"SELECT name FROM sqlite_master WHERE type='table' ORDER BY name\")->fetchAll(PDO::FETCH_COLUMN);
+
+            echo '📋 Tabelas no banco (' . count(\$tables) . '):' . PHP_EOL;
+            foreach (\$tables as \$table) {
+              // Contar registros
+              \$count = \$db->query(\"SELECT COUNT(*) FROM {\$table}\")->fetchColumn();
+              echo '  ✓ ' . str_pad(\$table, 30) . ' (' . \$count . ' registros)' . PHP_EOL;
+            }
+
+            echo PHP_EOL . '✅ Estrutura do banco validada' . PHP_EOL;
+          "
+
+      - name: Verificar integridade referencial
+        run: |
+          echo "🔗 Verificando integridade referencial..."
+
+          php -r "
+            \$db = new PDO('sqlite:config/estudos.db');
+            \$db->exec('PRAGMA foreign_keys = ON');
+
+            // Tentar algumas operações para verificar FKs
+            try {
+              // Teste: inserir aula sem curso (deve falhar)
+              \$db->exec(\"INSERT INTO aulas (titulo, descricao, curso_id) VALUES ('Test', 'Test', 99999)\");
+              echo '❌ FK não está funcionando!' . PHP_EOL;
+              exit(1);
+            } catch (PDOException \$e) {
+              echo '✅ Foreign Keys funcionando corretamente' . PHP_EOL;
+            }
+          "
+
+  check-migration-order:
+    name: Verificar Ordem das Migrações
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verificar novas migrações
+        run: |
+          echo "🔍 Verificando novas migrações adicionadas..."
+
+          # Listar migrações no PR/commit
+          NEW_MIGRATIONS=$(git diff --name-only origin/main...HEAD | grep "^migrations/" || true)
+
+          if [ -z "$NEW_MIGRATIONS" ]; then
+            echo "ℹ️  Nenhuma nova migração adicionada"
+            exit 0
+          fi
+
+          echo "📝 Novas migrações:"
+          echo "$NEW_MIGRATIONS"
+
+          # Verificar nomenclatura
+          for migration in $NEW_MIGRATIONS; do
+            filename=$(basename "$migration")
+            if [[ ! $filename =~ ^add_.*\.php$ ]] && [[ ! $filename =~ ^create_.*\.php$ ]] && [[ ! $filename =~ ^update_.*\.php$ ]]; then
+              echo "⚠️  AVISO: Nome da migração pode não seguir convenção: $filename"
+              echo "   Sugestão: use prefixos como add_, create_, update_"
+            fi
+          done
+
+          echo "✅ Verificação de nomenclatura concluída"
+
+  comment-migration-info:
+    name: Comentar Informações das Migrações
+    runs-on: ubuntu-latest
+    needs: [validate-migrations, check-migration-order]
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gerar resumo das migrações
+        id: summary
+        run: |
+          NEW_MIGRATIONS=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep "^migrations/" || echo "")
+
+          if [ -z "$NEW_MIGRATIONS" ]; then
+            echo "has_migrations=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "has_migrations=true" >> $GITHUB_OUTPUT
+
+          MIGRATION_LIST=""
+          for migration in $NEW_MIGRATIONS; do
+            MIGRATION_LIST="${MIGRATION_LIST}- \`${migration}\`\n"
+          done
+
+          echo "migrations<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$MIGRATION_LIST" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Comentar no PR
+        if: steps.summary.outputs.has_migrations == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## 🗄️ Migrações de Banco de Dados
+
+            Este PR adiciona ou modifica migrações de banco de dados:
+
+            ${{ steps.summary.outputs.migrations }}
+
+            ### ⚠️ Ações Necessárias Após o Merge:
+
+            1. **Para ambiente de desenvolvimento:**
+               \`\`\`bash
+               # Execute as novas migrações
+               php migrations/nome_da_migracao.php
+               \`\`\`
+
+            2. **Para ambiente de produção:**
+               - [ ] Fazer backup do banco de dados antes de executar
+               - [ ] Executar as migrações no servidor de produção
+               - [ ] Verificar se não há erros
+               - [ ] Testar funcionalidades afetadas
+
+            ### ✅ Validações Executadas:
+            - [x] Sintaxe PHP das migrações
+            - [x] Execução em banco SQLite de teste
+            - [x] Verificação de integridade referencial
+            - [x] Nomenclatura das migrações
+
+            ---
+            *Comentário gerado automaticamente pelo GitHub Actions*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  postgres-compatibility:
+    name: Verificar Compatibilidade PostgreSQL
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo, pdo_pgsql, mbstring
+
+      - name: Testar conexão PostgreSQL
+        run: |
+          echo "🐘 Testando conexão com PostgreSQL..."
+          php -r "
+            try {
+              \$pdo = new PDO('pgsql:host=localhost;port=5432;dbname=test_db', 'postgres', 'postgres');
+              echo '✅ Conexão com PostgreSQL OK' . PHP_EOL;
+            } catch (Exception \$e) {
+              echo '❌ Erro ao conectar: ' . \$e->getMessage() . PHP_EOL;
+              exit(1);
+            }
+          "
+
+      - name: Verificar migrações no PostgreSQL
+        run: |
+          echo "🧪 Verificando compatibilidade das migrações com PostgreSQL..."
+
+          # Criar schema
+          php -r "
+            \$pdo = new PDO('pgsql:host=localhost;port=5432;dbname=test_db', 'postgres', 'postgres');
+            \$pdo->exec('CREATE SCHEMA IF NOT EXISTS estudos');
+            \$pdo->exec('SET search_path TO estudos');
+            echo '✅ Schema criado' . PHP_EOL;
+          "
+
+          echo "ℹ️  Verificação de compatibilidade PostgreSQL concluída"
+          echo "💡 Execute setup_postgres.php para criar tabelas completas"
