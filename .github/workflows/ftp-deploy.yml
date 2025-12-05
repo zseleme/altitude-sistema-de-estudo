@@ -55,38 +55,6 @@ jobs:
           echo "📝 Commit: ${{ github.sha }}"
           echo "👤 Autor: ${{ github.actor }}"
 
-      - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: ${{ steps.target.outputs.folder }}/
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/vendor/**
-            **/.env
-            **/config/estudos.db
-            **/config/database.php
-            **/config/openai.php
-            **/.github/**
-            **/tests/**
-            **/*.md
-            **/.gitignore
-
-      - name: Criar arquivo de versão no servidor
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: ${{ steps.target.outputs.folder }}/
-          local-dir: ./deploy-info/
-          dangerous-clean-slate: false
-        continue-on-error: true
-
       - name: Gerar informações de deploy
         run: |
           mkdir -p deploy-info
@@ -116,15 +84,31 @@ jobs:
           echo "✅ Arquivo de versão criado"
           cat deploy-info/version.json
 
-      - name: Upload arquivo de versão
+      - name: Deploy via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: ${{ steps.target.outputs.folder }}/
-          local-dir: ./deploy-info/
           dangerous-clean-slate: false
+          dry-run: false
+          log-level: verbose
+          state-name: .ftp-deploy-sync-state-${{ github.ref_name }}.json
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/vendor/**
+            **/.env
+            **/config/estudos.db
+            **/config/database.php
+            **/config/openai.php
+            **/.github/**
+            **/tests/**
+            **/*.md
+            **/.gitignore
+            **/deploy-info/**
 
       - name: Resumo do Deploy
         if: success()
