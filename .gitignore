@@ -52,4 +52,5 @@ yarn.lock
 # FTP Deploy
 .ftp-deploy-sync-state*.json
 deploy-info/
+version.json
 

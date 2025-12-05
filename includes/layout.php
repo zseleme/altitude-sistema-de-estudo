@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/version.php';
 
 // Função para renderizar o layout base
 function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false) {
@@ -116,8 +117,9 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                     <span class="text-lg font-bold text-white">Altitude</span>
                 </a>
             </div>-->
-            
-            <nav class="p-4">
+
+            <nav class="p-4 flex flex-col min-h-full">
+                <div class="flex-grow">
                 <ul class="space-y-2">
                     <li>
                         <a href="/home.php" class="flex items-center px-4 py-3 text-white hover:bg-gray-700 rounded-lg transition-colors">
@@ -230,7 +232,40 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                     </ul>
                 </div>';
             }
-            
+
+            echo '                </div>'; // Fecha flex-grow
+
+            // Adicionar versão no rodapé do menu
+            $versionInfo = getAppVersion();
+            echo '
+                <!-- Versão do Sistema -->
+                <div class="mt-auto pt-4 border-t border-gray-700">
+                    <div class="px-4 py-3">
+                        <div class="text-xs text-gray-500 space-y-1">
+                            <div class="flex items-center justify-between">
+                                <span>Versão</span>
+                                <span class="text-gray-400 font-mono">' . htmlspecialchars($versionInfo['version']) . '</span>
+                            </div>';
+
+            if ($versionInfo['commit'] !== 'local') {
+                echo '                            <div class="flex items-center justify-between">
+                                <span>Commit</span>
+                                <span class="text-gray-400 font-mono">' . htmlspecialchars($versionInfo['commit']) . '</span>
+                            </div>';
+            }
+
+            if ($versionInfo['environment']) {
+                $envColor = $versionInfo['environment'] === 'Produção' ? 'text-green-400' : 'text-yellow-400';
+                echo '                            <div class="flex items-center justify-between">
+                                <span>Ambiente</span>
+                                <span class="' . $envColor . ' font-medium">' . htmlspecialchars($versionInfo['environment']) . '</span>
+                            </div>';
+            }
+
+            echo '                        </div>
+                    </div>
+                </div>';
+
             echo '            </nav>
         </aside>
 
