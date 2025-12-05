@@ -142,23 +142,43 @@ try {
             $questao = $stmt->fetch(PDO::FETCH_ASSOC);
             $correta = ($data['resposta'] === $questao['resposta_correta']);
 
-            // Registrar resposta
-            $query = "INSERT INTO simulado_respostas
-                      (usuario_id, simulado_id, questao_id, resposta_usuario, correta, tempo_resposta)
-                      VALUES (:usuario_id, :simulado_id, :questao_id, :resposta, :correta, :tempo)
-                      ON DUPLICATE KEY UPDATE
-                      resposta_usuario = :resposta, correta = :correta, tempo_resposta = :tempo";
-
+            // Verificar se já existe resposta
+            $query = "SELECT id FROM simulado_respostas
+                      WHERE usuario_id = :usuario_id AND simulado_id = :simulado_id AND questao_id = :questao_id";
             $stmt = $db->prepare($query);
             $stmt->bindParam(':usuario_id', $userId);
             $stmt->bindParam(':simulado_id', $data['simulado_id']);
             $stmt->bindParam(':questao_id', $data['questao_id']);
-            $stmt->bindParam(':resposta', $data['resposta']);
-            $stmt->bindParam(':correta', $correta, PDO::PARAM_INT);
-            $stmt->bindParam(':tempo', $data['tempo_resposta']);
             $stmt->execute();
+            $respostaExistente = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            $resposta_id = $db->lastInsertId() ?: $data['questao_id'];
+            if ($respostaExistente) {
+                // Atualizar resposta existente
+                $query = "UPDATE simulado_respostas
+                          SET resposta_usuario = :resposta, correta = :correta, tempo_resposta = :tempo
+                          WHERE id = :id";
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(':resposta', $data['resposta']);
+                $stmt->bindParam(':correta', $correta, PDO::PARAM_INT);
+                $stmt->bindParam(':tempo', $data['tempo_resposta']);
+                $stmt->bindParam(':id', $respostaExistente['id']);
+                $stmt->execute();
+                $resposta_id = $respostaExistente['id'];
+            } else {
+                // Inserir nova resposta
+                $query = "INSERT INTO simulado_respostas
+                          (usuario_id, simulado_id, questao_id, resposta_usuario, correta, tempo_resposta)
+                          VALUES (:usuario_id, :simulado_id, :questao_id, :resposta, :correta, :tempo)";
+                $stmt = $db->prepare($query);
+                $stmt->bindParam(':usuario_id', $userId);
+                $stmt->bindParam(':simulado_id', $data['simulado_id']);
+                $stmt->bindParam(':questao_id', $data['questao_id']);
+                $stmt->bindParam(':resposta', $data['resposta']);
+                $stmt->bindParam(':correta', $correta, PDO::PARAM_INT);
+                $stmt->bindParam(':tempo', $data['tempo_resposta']);
+                $stmt->execute();
+                $resposta_id = $db->lastInsertId();
+            }
 
             echo json_encode([
                 'success' => true,

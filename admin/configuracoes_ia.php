@@ -27,7 +27,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
             'groq_model' => trim($_POST['groq_model'] ?? 'llama-3.1-8b-instant'),
             'youtube_api_key' => trim($_POST['youtube_api_key'] ?? ''),
             'ai_temperature' => trim($_POST['ai_temperature'] ?? '0.3'),
-            'ai_max_tokens' => trim($_POST['ai_max_tokens'] ?? '2000')
+            'ai_max_tokens' => trim($_POST['ai_max_tokens'] ?? '4000')
         ];
 
         foreach ($configs as $chave => $valor) {
@@ -288,9 +288,10 @@ $content = '
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 mb-2">Modelo</label>
                                         <select name="gemini_model" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                            <option value="gemini-2.5-flash" ' . (($configs['gemini_model'] ?? '') === 'gemini-2.5-flash' ? 'selected' : '') . '>gemini-2.5-flash (Recomendado, Gratuito)</option>
+                                            <option value="gemini-2.5-flash" ' . (($configs['gemini_model'] ?? '') === 'gemini-2.5-flash' ? 'selected' : '') . '>gemini-2.5-flash (Recomendado)</option>
                                             <option value="gemini-2.5-flash-lite" ' . (($configs['gemini_model'] ?? '') === 'gemini-2.5-flash-lite' ? 'selected' : '') . '>gemini-2.5-flash-lite (Mais rápido)</option>
                                             <option value="gemini-2.5-pro" ' . (($configs['gemini_model'] ?? '') === 'gemini-2.5-pro' ? 'selected' : '') . '>gemini-2.5-pro (Mais preciso)</option>
+                                            <option value="gemini-2.0-flash" ' . (($configs['gemini_model'] ?? '') === 'gemini-2.0-flash' ? 'selected' : '') . '>gemini-2.0-flash</option>
                                         </select>
                                     </div>
                                 </div>
@@ -368,8 +369,8 @@ $content = '
                                     Máximo de Tokens
                                     <span class="text-gray-500 font-normal">- Tamanho da resposta</span>
                                 </label>
-                                <input type="number" name="ai_max_tokens" value="' . htmlspecialchars($configs['ai_max_tokens'] ?? '2000') . '"
-                                       min="100" max="4000" step="100"
+                                <input type="number" name="ai_max_tokens" value="' . htmlspecialchars($configs['ai_max_tokens'] ?? '4000') . '"
+                                       min="1000" max="8000" step="500"
                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                             </div>
                         </div>

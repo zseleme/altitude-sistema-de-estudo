@@ -22,7 +22,7 @@ Este guia explica como configurar a revisão automática de textos em inglês us
 ```php
 define('AI_PROVIDER', 'gemini');
 define('GEMINI_API_KEY', 'sua-chave-aqui');
-define('GEMINI_MODEL', 'gemini-1.5-flash'); // Rápido e gratuito
+define('GEMINI_MODEL', 'gemini-2.5-flash'); // Rápido e gratuito
 ```
 
 ---
@@ -95,7 +95,7 @@ define('AI_PROVIDER', 'gemini');
 define('GEMINI_API_KEY', 'AIza...');
 
 // Modelo (deixe o padrão)
-define('GEMINI_MODEL', 'gemini-1.5-flash');
+define('GEMINI_MODEL', 'gemini-2.5-flash');
 ```
 
 ### 3. Salvar e testar
@@ -116,7 +116,7 @@ define('AI_TEMPERATURE', 0.3); // 0.0 = consistente, 1.0 = criativo
 
 ### Máximo de tokens (tamanho da resposta)
 ```php
-define('AI_MAX_TOKENS', 2000); // Padrão: 2000
+define('AI_MAX_TOKENS', 4000); // Padrão: 4000
 ```
 
 ---

@@ -18,7 +18,7 @@ class AIHelper {
 
         $this->provider = $configs['ai_provider'] ?? 'gemini';
         $this->temperature = floatval($configs['ai_temperature'] ?? 0.3);
-        $this->maxTokens = intval($configs['ai_max_tokens'] ?? 2000);
+        $this->maxTokens = intval($configs['ai_max_tokens'] ?? 4000);
 
         // Configurar baseado no provedor
         switch ($this->provider) {
@@ -85,11 +85,36 @@ class AIHelper {
                     'groq_api_key' => defined('GROQ_API_KEY') ? GROQ_API_KEY : '',
                     'groq_model' => defined('GROQ_MODEL') ? GROQ_MODEL : 'llama-3.1-8b-instant',
                     'ai_temperature' => defined('AI_TEMPERATURE') ? AI_TEMPERATURE : 0.3,
-                    'ai_max_tokens' => defined('AI_MAX_TOKENS') ? AI_MAX_TOKENS : 2000
+                    'ai_max_tokens' => defined('AI_MAX_TOKENS') ? AI_MAX_TOKENS : 4000
                 ];
             }
 
             return [];
+        }
+    }
+
+    /**
+     * Analisa uma questão errada pelo aluno
+     */
+    public function analyzeQuestion($prompt) {
+        $systemPrompt = "Você é um professor de cursinho extremamente experiente e didático.";
+
+        // Temporariamente aumentar o limite de tokens para análise de questões
+        $originalMaxTokens = $this->maxTokens;
+        $this->maxTokens = 8000; // Aumentar para 8000 tokens
+
+        try {
+            switch ($this->provider) {
+                case 'openai':
+                    return $this->sendOpenAIRequest($systemPrompt, $prompt);
+                case 'gemini':
+                    return $this->sendGeminiRequest($systemPrompt, $prompt);
+                case 'groq':
+                    return $this->sendGroqRequest($systemPrompt, $prompt);
+            }
+        } finally {
+            // Restaurar o valor original
+            $this->maxTokens = $originalMaxTokens;
         }
     }
 
@@ -157,19 +182,16 @@ Be encouraging and constructive - remember, mistakes are part of learning!";
         // O endpoint precisa do formato: models/{model}
         $modelPath = 'models/' . str_replace('models/', '', $this->model);
 
-        $url = "https://generativelanguage.googleapis.com/v1beta/{$modelPath}:generateContent?key={$this->apiKey}";
+        $url = "https://generativelanguage.googleapis.com/v1/{$modelPath}:generateContent?key={$this->apiKey}";
 
-        // Gemini API usa systemInstruction separado do contents
+        // Combinar system e user prompts em um único texto (v1 não suporta systemInstruction)
+        $combinedPrompt = $systemPrompt . "\n\n" . $userPrompt;
+
         $data = [
-            'systemInstruction' => [
-                'parts' => [
-                    ['text' => $systemPrompt]
-                ]
-            ],
             'contents' => [
                 [
                     'parts' => [
-                        ['text' => $userPrompt]
+                        ['text' => $combinedPrompt]
                     ]
                 ]
             ],
@@ -183,8 +205,46 @@ Be encouraging and constructive - remember, mistakes are part of learning!";
 
         $response = $this->curlRequest($url, $data, $headers);
 
+        // Debug: verificar se a resposta foi bloqueada
+        if (isset($response['promptFeedback']['blockReason'])) {
+            throw new Exception('Conteúdo bloqueado pela API: ' . $response['promptFeedback']['blockReason']);
+        }
+
+        // Verificar se há candidatos na resposta
+        if (!isset($response['candidates']) || empty($response['candidates'])) {
+            $error = 'Nenhum candidato retornado. ';
+            if (isset($response['error'])) {
+                $error .= 'Erro: ' . json_encode($response['error']);
+            } else {
+                $error .= 'Resposta: ' . json_encode($response);
+            }
+            throw new Exception($error);
+        }
+
+        // Verificar se o conteúdo existe
         if (!isset($response['candidates'][0]['content']['parts'][0]['text'])) {
-            throw new Exception('Resposta inválida da API Gemini');
+            $finishReason = $response['candidates'][0]['finishReason'] ?? 'desconhecido';
+
+            // Se o motivo é MAX_TOKENS mas há conteúdo parcial, podemos tentar usar
+            if ($finishReason === 'MAX_TOKENS' && isset($response['candidates'][0]['content']['parts'])) {
+                // Tentar extrair texto de qualquer parte disponível
+                $parts = $response['candidates'][0]['content']['parts'];
+                $text = '';
+                foreach ($parts as $part) {
+                    if (isset($part['text'])) {
+                        $text .= $part['text'];
+                    }
+                }
+
+                if (!empty($text)) {
+                    return [
+                        'review' => $text . "\n\n[Resposta truncada devido ao limite de tokens]",
+                        'tokens_used' => $response['usageMetadata']['totalTokenCount'] ?? 0
+                    ];
+                }
+            }
+
+            throw new Exception('Resposta inválida da API Gemini. Motivo: ' . $finishReason . '. Resposta: ' . json_encode($response['candidates'][0]));
         }
 
         return [
@@ -241,16 +301,23 @@ Be encouraging and constructive - remember, mistakes are part of learning!";
             throw new Exception('Erro na requisição: ' . $error);
         }
 
-        if ($httpCode !== 200) {
-            $errorData = json_decode($response, true);
-            $errorMessage = $errorData['error']['message'] ?? $errorData['error'] ?? 'Erro desconhecido';
-            throw new Exception('Erro da API: ' . $errorMessage);
-        }
-
         $result = json_decode($response, true);
 
         if (!$result) {
-            throw new Exception('Resposta inválida da API');
+            throw new Exception('Resposta inválida da API (não é JSON válido)');
+        }
+
+        // Verificar se a resposta contém erro (pode vir com código 200)
+        if (isset($result['error'])) {
+            $errorMessage = is_array($result['error'])
+                ? ($result['error']['message'] ?? json_encode($result['error']))
+                : $result['error'];
+            throw new Exception('Erro da API: ' . $errorMessage);
+        }
+
+        if ($httpCode !== 200) {
+            $errorMessage = $result['error']['message'] ?? $result['error'] ?? 'Erro desconhecido';
+            throw new Exception('Erro da API (HTTP ' . $httpCode . '): ' . $errorMessage);
         }
 
         return $result;
