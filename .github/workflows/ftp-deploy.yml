@@ -40,7 +40,7 @@ jobs:
             echo "environment=Produção" >> $GITHUB_OUTPUT
             echo "color=green" >> $GITHUB_OUTPUT
           elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
-            echo "folder=/dev.seleme.pt/" >> $GITHUB_OUTPUT
+            echo "folder=/dev.seleme.pt" >> $GITHUB_OUTPUT
             echo "environment=Desenvolvimento" >> $GITHUB_OUTPUT
             echo "color=yellow" >> $GITHUB_OUTPUT
           fi
