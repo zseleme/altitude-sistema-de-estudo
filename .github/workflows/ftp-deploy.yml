@@ -57,8 +57,8 @@ jobs:
 
       - name: Gerar informações de deploy
         run: |
-          mkdir -p deploy-info
-          cat > deploy-info/version.json <<EOF
+          # Criar version.json na raiz (será enviado ao servidor)
+          cat > version.json <<EOF
           {
             "version": "$(date +%Y.%m.%d-%H%M%S)",
             "commit": "${{ github.sha }}",
@@ -68,6 +68,10 @@ jobs:
             "environment": "${{ steps.target.outputs.environment }}"
           }
           EOF
+
+          # Criar pasta deploy-info para logs (não será enviada)
+          mkdir -p deploy-info
+          cp version.json deploy-info/version.json
 
           cat > deploy-info/LAST_DEPLOY.txt <<EOF
           ====================================
@@ -82,7 +86,7 @@ jobs:
           EOF
 
           echo "✅ Arquivo de versão criado"
-          cat deploy-info/version.json
+          cat version.json
 
       - name: Deploy via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
