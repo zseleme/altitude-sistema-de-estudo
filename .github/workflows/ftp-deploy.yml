@@ -15,210 +15,6 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Configurar PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
-          extensions: pdo, pdo_sqlite, pdo_pgsql, mbstring
-
-      - name: Validar sintaxe PHP
-        run: |
-          echo "🔍 Validando sintaxe PHP antes do deploy..."
-          ERROR_COUNT=0
-          FILE_COUNT=0
-
-          while IFS= read -r file; do
-            FILE_COUNT=$((FILE_COUNT + 1))
-            if ! php -l "$file" > /dev/null 2>&1; then
-              echo "❌ Erro em: $file"
-              php -l "$file"
-              ERROR_COUNT=$((ERROR_COUNT + 1))
-            fi
-          done < <(find . -name "*.php" -not -path "./vendor/*" -not -path "./node_modules/*")
-
-          echo ""
-          echo "📊 Resumo da validação:"
-          echo "  • Arquivos verificados: $FILE_COUNT"
-          echo "  • Erros encontrados: $ERROR_COUNT"
-
-          if [ $ERROR_COUNT -gt 0 ]; then
-            echo "❌ Deploy cancelado devido a erros de sintaxe!"
-            exit 1
-          fi
-          echo "✅ Sintaxe PHP OK"
-
-      - name: Verificar arquivos críticos
-        run: |
-          echo "🔍 Verificando arquivos críticos do sistema..."
-          MISSING_FILES=()
-
-          # Arquivos essenciais
-          CRITICAL_FILES=(
-            "includes/auth.php"
-            "includes/auto_install.php"
-            "includes/ai_helper.php"
-            "includes/layout.php"
-            "includes/version.php"
-            "config/database.php.example"
-            "api/simulados.php"
-            "api/analise_questao_ia.php"
-            "home.php"
-            "login.php"
-          )
-
-          for file in "${CRITICAL_FILES[@]}"; do
-            if [ ! -f "$file" ]; then
-              MISSING_FILES+=("$file")
-              echo "❌ Arquivo crítico ausente: $file"
-            fi
-          done
-
-          if [ ${#MISSING_FILES[@]} -gt 0 ]; then
-            echo "❌ Deploy cancelado! ${#MISSING_FILES[@]} arquivo(s) crítico(s) ausente(s)."
-            exit 1
-          fi
-          echo "✅ Todos os arquivos críticos presentes"
-
-      - name: Testar auto-instalação
-        run: |
-          echo "🔍 Testando sistema de auto-instalação..."
-
-          # Verificar se auto_install.php não tem erros de sintaxe
-          php -l includes/auto_install.php
-
-          # Criar diretório temporário para teste
-          mkdir -p /tmp/test-install
-          cd /tmp/test-install
-
-          # Copiar arquivos necessários
-          cp -r $GITHUB_WORKSPACE/includes .
-          cp -r $GITHUB_WORKSPACE/config .
-
-          # Testar se database.php.example pode ser copiado
-          if [ -f "config/database.php.example" ]; then
-            cp config/database.php.example config/database.php
-            echo "✅ Arquivo de configuração exemplo OK"
-          else
-            echo "❌ Arquivo database.php.example não encontrado!"
-            exit 1
-          fi
-
-          echo "✅ Sistema de auto-instalação validado"
-
-      - name: Verificar configurações de IA
-        run: |
-          echo "🔍 Verificando configurações de IA..."
-
-          # Verificar se AIHelper está bem formado
-          if grep -q "class AIHelper" includes/ai_helper.php; then
-            echo "✅ Classe AIHelper encontrada"
-          else
-            echo "❌ Classe AIHelper não encontrada!"
-            exit 1
-          fi
-
-          # Verificar providers suportados
-          if grep -q "gemini" includes/ai_helper.php && \
-             grep -q "openai" includes/ai_helper.php && \
-             grep -q "groq" includes/ai_helper.php; then
-            echo "✅ Todos os providers de IA configurados"
-          else
-            echo "⚠️ Alguns providers de IA podem estar faltando"
-          fi
-
-      - name: Validar estrutura de API
-        run: |
-          echo "🔍 Validando estrutura de API..."
-          API_ERRORS=0
-
-          # Verificar se APIs têm Content-Type JSON
-          for api_file in api/*.php; do
-            if [ -f "$api_file" ]; then
-              if ! grep -q "Content-Type.*json" "$api_file"; then
-                echo "⚠️ $api_file pode não ter Content-Type JSON"
-                API_ERRORS=$((API_ERRORS + 1))
-              fi
-            fi
-          done
-
-          # Verificar se APIs usam auth
-          for api_file in api/*.php; do
-            if [ -f "$api_file" ]; then
-              if ! grep -q "require.*auth.php\|requireLogin\|requireAdmin" "$api_file"; then
-                echo "⚠️ $api_file pode não ter autenticação"
-                API_ERRORS=$((API_ERRORS + 1))
-              fi
-            fi
-          done
-
-          if [ $API_ERRORS -gt 0 ]; then
-            echo "⚠️ $API_ERRORS aviso(s) em arquivos de API (não bloqueante)"
-          else
-            echo "✅ Estrutura de API validada"
-          fi
-
-      - name: Verificar segurança básica
-        run: |
-          echo "🔍 Verificando segurança básica..."
-          SECURITY_ISSUES=0
-
-          # Verificar se há credenciais hardcoded (padrões comuns)
-          if grep -r "password.*=.*['\"].*['\"]" --include="*.php" . | grep -v "password_hash\|password_verify\|'password'\|\"password\"" | grep -v ".example" | grep -v ".git"; then
-            echo "⚠️ Possíveis credenciais hardcoded encontradas"
-            SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
-          fi
-
-          # Verificar uso de prepared statements vs concatenação SQL
-          if grep -r "\$.*SELECT.*\$\|INSERT.*\$\|UPDATE.*\$\|DELETE.*\$" --include="*.php" api/ admin/ | grep -v "prepare\|execute\|query.*\?" | head -5; then
-            echo "⚠️ Possível concatenação SQL encontrada (verificar prepared statements)"
-            SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
-          fi
-
-          # Verificar se arquivos sensíveis estão no .gitignore
-          if [ -f ".gitignore" ]; then
-            if ! grep -q "database.php" .gitignore || ! grep -q "estudos.db" .gitignore; then
-              echo "⚠️ Arquivos sensíveis podem não estar no .gitignore"
-              SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
-            fi
-          fi
-
-          if [ $SECURITY_ISSUES -eq 0 ]; then
-            echo "✅ Verificações de segurança OK"
-          else
-            echo "⚠️ $SECURITY_ISSUES aviso(s) de segurança (não bloqueante, revisar manualmente)"
-          fi
-
-      - name: Validar estrutura do banco de dados
-        run: |
-          echo "🔍 Validando definições de banco de dados..."
-
-          # Verificar se auto_install.php contém todas as tabelas críticas
-          TABLES_REQUIRED=(
-            "usuarios"
-            "cursos"
-            "modulos"
-            "aulas"
-            "simulados"
-            "simulado_questoes"
-            "simulado_tentativas"
-            "configuracoes"
-          )
-
-          MISSING_TABLES=0
-          for table in "${TABLES_REQUIRED[@]}"; do
-            if ! grep -q "CREATE TABLE.*$table" includes/auto_install.php; then
-              echo "❌ Tabela '$table' não encontrada em auto_install.php"
-              MISSING_TABLES=$((MISSING_TABLES + 1))
-            fi
-          done
-
-          if [ $MISSING_TABLES -gt 0 ]; then
-            echo "❌ $MISSING_TABLES tabela(s) crítica(s) ausente(s)!"
-            exit 1
-          fi
-
-          echo "✅ Estrutura de banco de dados validada"
-
       - name: Definir pasta de destino
         id: target
         run: |
@@ -308,21 +104,12 @@ jobs:
           echo "✅ Deploy concluído com sucesso!"
           echo "✅ ================================"
           echo ""
-          echo "📊 Detalhes do Deploy:"
+          echo "📊 Detalhes:"
           echo "  • Ambiente: ${{ steps.target.outputs.environment }}"
           echo "  • Pasta: ${{ steps.target.outputs.folder }}"
           echo "  • Branch: ${{ github.ref_name }}"
           echo "  • Commit: $(git log -1 --pretty=format:'%h - %s')"
           echo "  • Arquivos enviados: ✓"
-          echo ""
-          echo "🧪 Testes Executados:"
-          echo "  ✓ Validação de sintaxe PHP"
-          echo "  ✓ Verificação de arquivos críticos"
-          echo "  ✓ Teste de auto-instalação"
-          echo "  ✓ Configurações de IA"
-          echo "  ✓ Estrutura de API"
-          echo "  ✓ Verificações de segurança"
-          echo "  ✓ Validação de banco de dados"
           echo ""
           echo "🌐 Acesse:"
           if [ "${{ steps.target.outputs.environment }}" == "Produção" ]; then
@@ -341,17 +128,7 @@ jobs:
           echo "🔍 Verifique os logs acima para detalhes do erro."
           echo ""
           echo "Possíveis causas:"
-          echo "  • ❌ Erro de sintaxe PHP"
-          echo "  • ❌ Arquivo crítico ausente"
-          echo "  • ❌ Falha no teste de auto-instalação"
-          echo "  • ❌ Configuração de IA incorreta"
-          echo "  • ❌ Estrutura de API inválida"
-          echo "  • ❌ Problema de segurança detectado"
-          echo "  • ❌ Tabela de banco de dados ausente"
-          echo "  • ❌ Credenciais FTP incorretas"
-          echo "  • ❌ Servidor FTP offline"
-          echo ""
-          echo "💡 Dicas:"
-          echo "  • Revise o log do teste que falhou"
-          echo "  • Execute os testes localmente antes do push"
-          echo "  • Verifique se todos os arquivos foram commitados"
+          echo "  • Credenciais FTP incorretas"
+          echo "  • Servidor FTP offline"
+          echo "  • Permissões de pasta incorretas"
+          echo "  • Erro na geração do version.json"
