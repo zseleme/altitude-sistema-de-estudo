@@ -261,27 +261,31 @@ function createTables($pdo) {
 
     // Tabelas de inglês
     $pdo->exec("
-        CREATE TABLE IF NOT EXISTS english_diary (
+        CREATE TABLE IF NOT EXISTS ingles_anotacoes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             usuario_id INTEGER NOT NULL,
-            entry_text TEXT NOT NULL,
-            ai_review TEXT,
-            score INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            titulo VARCHAR(255),
+            conteudo TEXT NOT NULL,
+            categoria VARCHAR(50) CHECK (categoria IN ('vocabulario', 'gramatica', 'expressoes', 'pronuncia', 'outros')),
+            tags TEXT,
+            data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+            data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
         )
     ");
 
     $pdo->exec("
-        CREATE TABLE IF NOT EXISTS english_notes (
+        CREATE TABLE IF NOT EXISTS ingles_diario (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             usuario_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            category TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+            data_entrada DATE NOT NULL,
+            conteudo TEXT NOT NULL,
+            humor VARCHAR(20) CHECK (humor IN ('otimo', 'bom', 'neutro', 'ruim', 'pessimo')),
+            tags TEXT,
+            data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+            data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+            UNIQUE(usuario_id, data_entrada)
         )
     ");
 
@@ -299,14 +303,46 @@ function createTables($pdo) {
         )
     ");
 
-    // Tabela de configurações de IA
+    // Tabela de configurações do sistema
     $pdo->exec("
-        CREATE TABLE IF NOT EXISTS ai_settings (
+        CREATE TABLE IF NOT EXISTS configuracoes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            setting_key TEXT NOT NULL UNIQUE,
-            setting_value TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            chave VARCHAR(100) UNIQUE NOT NULL,
+            valor TEXT,
+            descricao TEXT,
+            tipo VARCHAR(50) DEFAULT 'text',
+            data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+            data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+
+    // Tabela de certificados externos (outras plataformas)
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS certificados_externos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL,
+            titulo VARCHAR(255) NOT NULL,
+            instituicao VARCHAR(255) NOT NULL,
+            categoria VARCHAR(50) NOT NULL CHECK (categoria IN ('graduacao', 'pos_mba', 'extensao', 'curso_livre')),
+            descricao TEXT,
+            data_conclusao DATE,
+            carga_horaria INTEGER,
+            arquivo_certificado TEXT,
+            url_verificacao TEXT,
+            data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+        )
+    ");
+
+    // Tabela de cursos arquivados por usuário
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS cursos_arquivados (
+            usuario_id INTEGER NOT NULL,
+            curso_id INTEGER NOT NULL,
+            data_arquivamento DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (usuario_id, curso_id),
+            FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+            FOREIGN KEY (curso_id) REFERENCES cursos(id) ON DELETE CASCADE
         )
     ");
 }
@@ -344,6 +380,25 @@ function insertInitialData($pdo) {
     $stmt = $pdo->prepare("INSERT INTO cursos (titulo, descricao, categoria_id, ativo) VALUES (?, ?, ?, ?)");
     foreach ($cursos as $curso) {
         $stmt->execute([$curso[0], $curso[1], $curso[2], 1]);
+    }
+
+    // Inserir configurações padrão do sistema
+    $configuracoes = [
+        ['ai_provider', 'gemini', 'Provedor de IA (openai, gemini, groq)', 'select'],
+        ['openai_api_key', '', 'Chave da API OpenAI', 'password'],
+        ['openai_model', 'gpt-4o-mini', 'Modelo OpenAI', 'text'],
+        ['gemini_api_key', '', 'Chave da API Google Gemini', 'password'],
+        ['gemini_model', 'gemini-2.5-flash', 'Modelo Gemini', 'text'],
+        ['groq_api_key', '', 'Chave da API Groq', 'password'],
+        ['groq_model', 'llama-3.1-8b-instant', 'Modelo Groq', 'text'],
+        ['ai_temperature', '0.3', 'Temperatura (0.0-1.0)', 'number'],
+        ['ai_max_tokens', '4000', 'Máximo de tokens', 'number'],
+        ['youtube_api_key', '', 'Chave da API YouTube Data v3', 'password']
+    ];
+
+    $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor, descricao, tipo) VALUES (?, ?, ?, ?)");
+    foreach ($configuracoes as $config) {
+        $stmt->execute([$config[0], $config[1], $config[2], $config[3]]);
     }
 }
 
