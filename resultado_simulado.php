@@ -86,6 +86,65 @@ $content = '
             <div id="analiseGeral"></div>
         </div>
 
+        <!-- Análise por IA -->
+        <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl shadow-sm border border-purple-200 p-6 mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-gray-900 flex items-center">
+                    <i class="fas fa-robot text-purple-600 mr-2"></i>
+                    Orientações de Estudo Personalizadas (IA)
+                </h2>
+                <button id="btnGerarAnaliseIA" onclick="gerarAnaliseIA()" class="hidden px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors inline-flex items-center">
+                    <i class="fas fa-sparkles mr-2"></i>
+                    Gerar Análise
+                </button>
+            </div>
+
+            <!-- Loading da Análise -->
+            <div id="loadingAnaliseIA" class="hidden text-center py-8">
+                <i class="fas fa-spinner fa-spin text-4xl text-purple-600 mb-3"></i>
+                <p class="text-gray-600">Analisando seu desempenho...</p>
+            </div>
+
+            <!-- Conteúdo da Análise -->
+            <div id="conteudoAnaliseIA" class="prose max-w-none text-gray-800">
+                <!-- Será preenchido via JavaScript -->
+            </div>
+        </div>
+
+        <style>
+            #conteudoAnaliseIA h3 {
+                font-size: 1.125rem;
+                font-weight: 700;
+                color: #1f2937;
+                margin-top: 1rem;
+                margin-bottom: 0.5rem;
+            }
+            #conteudoAnaliseIA h4 {
+                font-size: 1rem;
+                font-weight: 600;
+                color: #374151;
+                margin-top: 0.75rem;
+                margin-bottom: 0.5rem;
+            }
+            #conteudoAnaliseIA ul {
+                list-style-type: disc;
+                margin-left: 1.5rem;
+                margin-bottom: 1rem;
+            }
+            #conteudoAnaliseIA li {
+                margin-bottom: 0.25rem;
+                margin-left: 1rem;
+            }
+            #conteudoAnaliseIA p {
+                margin-bottom: 0.75rem;
+                line-height: 1.6;
+            }
+            #conteudoAnaliseIA strong {
+                font-weight: 600;
+                color: #111827;
+            }
+        </style>
+
         <!-- Filtros -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
             <div class="flex flex-wrap gap-3">
@@ -188,8 +247,83 @@ function exibirResultado() {
 
     exibirQuestoes();
 
+    // Verificar se já existe análise IA
+    if (resultado.analise_ia_desempenho) {
+        exibirAnaliseIA(resultado.analise_ia_desempenho);
+    } else {
+        // Gerar análise IA automaticamente
+        gerarAnaliseIA();
+    }
+
     document.getElementById(\'loadingArea\').style.display = \'none\';
     document.getElementById(\'resultadoArea\').style.display = \'block\';
+}
+
+async function gerarAnaliseIA() {
+    const loadingDiv = document.getElementById(\'loadingAnaliseIA\');
+    const conteudoDiv = document.getElementById(\'conteudoAnaliseIA\');
+    const btnGerar = document.getElementById(\'btnGerarAnaliseIA\');
+
+    loadingDiv.classList.remove(\'hidden\');
+    conteudoDiv.innerHTML = \'\';
+    btnGerar.classList.add(\'hidden\');
+
+    try {
+        const formData = new FormData();
+        formData.append(\'tentativa_id\', tentativaId);
+
+        const response = await fetch(\'api/analise_desempenho_ia.php\', {
+            method: \'POST\',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            exibirAnaliseIA(result.analise);
+            // Atualizar resultado local
+            resultado.analise_ia_desempenho = result.analise;
+        } else {
+            throw new Error(result.error || \'Erro ao gerar análise\');
+        }
+    } catch (error) {
+        console.error(\'Erro:\', error);
+        conteudoDiv.innerHTML = `
+            <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+                <p class="text-yellow-900">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    ${error.message || \'Não foi possível gerar a análise por IA no momento.\'}
+                </p>
+            </div>
+        `;
+        btnGerar.classList.remove(\'hidden\');
+    } finally {
+        loadingDiv.classList.add(\'hidden\');
+    }
+}
+
+function exibirAnaliseIA(analiseMarkdown) {
+    const conteudoDiv = document.getElementById(\'conteudoAnaliseIA\');
+    const btnGerar = document.getElementById(\'btnGerarAnaliseIA\');
+
+    // Converter Markdown básico para HTML
+    let html = analiseMarkdown
+        .replace(/^## (.*$)/gim, \'<h3 class="text-lg font-bold text-gray-900 mt-4 mb-2">$1</h3>\')
+        .replace(/^### (.*$)/gim, \'<h4 class="text-md font-semibold text-gray-800 mt-3 mb-2">$1</h4>\')
+        .replace(/\\*\\*(.+?)\\*\\*/g, \'<strong>$1</strong>\')
+        .replace(/\\*(.+?)\\*/g, \'<em>$1</em>\')
+        .replace(/^- (.+)$/gim, \'<li class="ml-4">$1</li>\')
+        .replace(/\\n\\n/g, \'</p><p class="mb-3">\')
+        .replace(/^(?!<[hl]|<li)/gim, \'<p class="mb-3">\');
+
+    // Envolver listas em <ul>
+    html = html.replace(/(<li.*?<\\/li>\\s*)+/g, match => `<ul class="list-disc ml-6 mb-4 space-y-1">${match}</ul>`);
+
+    conteudoDiv.innerHTML = `<div class="text-gray-800">${html}</div>`;
+
+    // Mostrar botão para regenerar
+    btnGerar.innerHTML = \'<i class="fas fa-redo mr-2"></i>Gerar Nova Análise\';
+    btnGerar.classList.remove(\'hidden\');
 }
 
 function exibirQuestoes() {
