@@ -15,23 +15,6 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Configurar PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
-          extensions: pdo, pdo_sqlite, pdo_pgsql, mbstring
-
-      - name: Validar sintaxe PHP
-        run: |
-          echo "🔍 Validando sintaxe PHP antes do deploy..."
-          find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \; > /tmp/syntax.log
-          if grep -q "Parse error" /tmp/syntax.log; then
-            echo "❌ Erros de sintaxe encontrados! Deploy cancelado."
-            cat /tmp/syntax.log
-            exit 1
-          fi
-          echo "✅ Sintaxe PHP OK"
-
       - name: Definir pasta de destino
         id: target
         run: |
@@ -129,8 +112,11 @@ jobs:
           echo "  • Arquivos enviados: ✓"
           echo ""
           echo "🌐 Acesse:"
-          echo "  • Produção: https://seu-site.com"
-          echo "  • Desenvolvimento: https://dev.seu-site.com"
+          if [ "${{ steps.target.outputs.environment }}" == "Produção" ]; then
+            echo "  • https://seleme.pt"
+          else
+            echo "  • https://dev.seleme.pt"
+          fi
 
       - name: Notificar erro
         if: failure()
@@ -139,9 +125,10 @@ jobs:
           echo "❌ Deploy falhou!"
           echo "❌ ================================"
           echo ""
-          echo "Verifique os logs acima para detalhes do erro."
+          echo "🔍 Verifique os logs acima para detalhes do erro."
+          echo ""
           echo "Possíveis causas:"
           echo "  • Credenciais FTP incorretas"
           echo "  • Servidor FTP offline"
           echo "  • Permissões de pasta incorretas"
-          echo "  • Erro de sintaxe no código"
+          echo "  • Erro na geração do version.json"

@@ -80,6 +80,45 @@ $content = '
     </div>
 </div>
 
+<!-- Modal Editar Simulado -->
+<div id="modalEditarSimulado" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-xl font-bold text-gray-900">Editar Simulado</h3>
+                <button onclick="fecharModalEditarSimulado()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <form id="formEditarSimulado" class="space-y-4">
+                    <input type="hidden" id="edit_simulado_id">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+                        <input type="text" id="edit_titulo" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                        <textarea id="edit_descricao" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Disciplina</label>
+                        <input type="text" id="edit_disciplina" placeholder="Ex: Matemática, História" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tempo Limite (minutos)</label>
+                        <input type="number" id="edit_tempo_limite" placeholder="0 = sem limite" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                </form>
+            </div>
+            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                <button onclick="fecharModalEditarSimulado()" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors">Cancelar</button>
+                <button onclick="salvarEdicaoSimulado()" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Cadastro Massivo -->
 <div id="modalCadastroMassivo" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen p-4">
@@ -173,11 +212,14 @@ async function carregarSimulados() {
                     </span>
                 </td>
                 <td class="px-6 py-4 text-sm space-x-2">
-                    <button onclick="abrirCadastroMassivo(${sim.id})" class="text-blue-600 hover:text-blue-800" title="Adicionar Questões">
-                        <i class="fas fa-plus-circle"></i>
-                    </button>
                     <button onclick="visualizarQuestoes(${sim.id})" class="text-gray-600 hover:text-gray-800" title="Ver Questões">
                         <i class="fas fa-eye"></i>
+                    </button>
+                    <button onclick="editarSimulado(${sim.id})" class="text-blue-600 hover:text-blue-800" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button onclick="excluirSimulado(${sim.id})" class="text-red-600 hover:text-red-800" title="Excluir">
+                        <i class="fas fa-trash"></i>
                     </button>
                 </td>
             `;
@@ -309,6 +351,86 @@ async function salvarQuestoesMassivo() {
 
 function visualizarQuestoes(simuladoId) {
     window.location.href = `visualizar_questoes.php?id=${simuladoId}`;
+}
+
+async function editarSimulado(simuladoId) {
+    const simulado = simulados.find(s => s.id == simuladoId);
+
+    if (!simulado) {
+        alert(\'Simulado não encontrado\');
+        return;
+    }
+
+    document.getElementById(\'edit_simulado_id\').value = simulado.id;
+    document.getElementById(\'edit_titulo\').value = simulado.titulo;
+    document.getElementById(\'edit_descricao\').value = simulado.descricao || \'\';
+    document.getElementById(\'edit_disciplina\').value = simulado.disciplina || \'\';
+    document.getElementById(\'edit_tempo_limite\').value = simulado.tempo_limite || 0;
+
+    document.getElementById(\'modalEditarSimulado\').classList.remove(\'hidden\');
+}
+
+function fecharModalEditarSimulado() {
+    document.getElementById(\'modalEditarSimulado\').classList.add(\'hidden\');
+}
+
+async function salvarEdicaoSimulado() {
+    const data = {
+        id: document.getElementById(\'edit_simulado_id\').value,
+        titulo: document.getElementById(\'edit_titulo\').value,
+        descricao: document.getElementById(\'edit_descricao\').value,
+        disciplina: document.getElementById(\'edit_disciplina\').value,
+        tempo_limite: document.getElementById(\'edit_tempo_limite\').value || 0
+    };
+
+    try {
+        const response = await fetch(\'api/simulados.php?action=editar\', {
+            method: \'POST\',
+            headers: {\'Content-Type\': \'application/json\'},
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            fecharModalEditarSimulado();
+            carregarSimulados();
+            alert(\'Simulado atualizado com sucesso!\');
+        } else {
+            alert(\'Erro: \' + result.error);
+        }
+    } catch (error) {
+        console.error(\'Erro:\', error);
+        alert(\'Erro ao atualizar simulado\');
+    }
+}
+
+async function excluirSimulado(simuladoId) {
+    if (!confirm(\'Tem certeza que deseja excluir este simulado? Esta ação não pode ser desfeita.\')) {
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append(\'id\', simuladoId);
+
+        const response = await fetch(\'api/simulados.php?action=excluir\', {
+            method: \'POST\',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            carregarSimulados();
+            alert(\'Simulado excluído com sucesso!\');
+        } else {
+            alert(\'Erro: \' + result.error);
+        }
+    } catch (error) {
+        console.error(\'Erro:\', error);
+        alert(\'Erro ao excluir simulado\');
+    }
 }
 </script>';
 

@@ -233,7 +233,7 @@ try {
         case 'resultado':
             $tentativa_id = $_GET['tentativa_id'] ?? 0;
 
-            $query = "SELECT t.*, s.titulo, s.descricao
+            $query = "SELECT t.*, s.titulo, s.descricao, s.disciplina
                       FROM simulado_tentativas t
                       INNER JOIN simulados s ON t.simulado_id = s.id
                       WHERE t.id = :tentativa_id AND t.usuario_id = :usuario_id";
@@ -268,6 +268,58 @@ try {
             $tentativa['respostas'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             echo json_encode($tentativa);
+            break;
+
+        case 'editar':
+            if (!isAdmin()) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Acesso negado']);
+                exit;
+            }
+
+            $data = json_decode(file_get_contents('php://input'), true);
+            $id = $data['id'] ?? 0;
+
+            $query = "UPDATE simulados
+                      SET titulo = :titulo,
+                          descricao = :descricao,
+                          disciplina = :disciplina,
+                          tempo_limite = :tempo_limite
+                      WHERE id = :id";
+
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':titulo', $data['titulo']);
+            $stmt->bindParam(':descricao', $data['descricao']);
+            $stmt->bindParam(':disciplina', $data['disciplina']);
+            $stmt->bindParam(':tempo_limite', $data['tempo_limite']);
+            $stmt->bindParam(':id', $id);
+
+            if ($stmt->execute()) {
+                echo json_encode(['success' => true]);
+            } else {
+                throw new Exception('Erro ao editar simulado');
+            }
+            break;
+
+        case 'excluir':
+            if (!isAdmin()) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Acesso negado']);
+                exit;
+            }
+
+            $id = $_POST['id'] ?? $_GET['id'] ?? 0;
+
+            // Soft delete - marcar como inativo
+            $query = "UPDATE simulados SET ativo = 0 WHERE id = :id";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+
+            if ($stmt->execute()) {
+                echo json_encode(['success' => true]);
+            } else {
+                throw new Exception('Erro ao excluir simulado');
+            }
             break;
 
         default:

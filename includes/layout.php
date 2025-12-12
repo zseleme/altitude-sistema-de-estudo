@@ -109,7 +109,7 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
 
         if ($showSidebar) {
             echo '        <!-- Left Sidebar -->
-        <aside class="w-64 bg-gray-800 text-white fixed left-0 top-16 bottom-0 overflow-y-auto">
+        <aside class="w-64 bg-gray-800 text-white fixed left-0 top-16 bottom-0 overflow-y-auto z-40 transition-transform duration-300 ease-in-out md:translate-x-0 -translate-x-full">
             <!-- Logo na Sidebar
             <div class="p-4 border-b border-gray-700">
                 <a href="/dashboard.php" class="flex items-center space-x-2">
@@ -375,9 +375,12 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
     </div>
 
     <!-- Mobile Menu Button -->
-    <button id="mobile-menu-btn" class="md:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-lg">
+    <button id="mobile-menu-btn" class="md:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 text-white rounded-lg shadow-lg">
         <i class="fas fa-bars"></i>
     </button>
+
+    <!-- Mobile Backdrop -->
+    <div id="mobile-backdrop" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden transition-opacity duration-300"></div>
 
     <script>
         // Admin dropdown toggle with localStorage persistence
@@ -429,32 +432,50 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
         // Mobile menu toggle
         document.getElementById("mobile-menu-btn").addEventListener("click", function() {
             const sidebar = document.querySelector("aside");
+            const backdrop = document.getElementById("mobile-backdrop");
+
             if (sidebar) {
-                sidebar.classList.toggle("-translate-x-full");
+                const isOpen = sidebar.classList.toggle("-translate-x-full");
+
+                // Toggle backdrop
+                if (backdrop) {
+                    if (isOpen) {
+                        backdrop.classList.add("hidden");
+                    } else {
+                        backdrop.classList.remove("hidden");
+                    }
+                }
             }
         });
 
-        // Close mobile menu when clicking outside
-        document.addEventListener("click", function(e) {
-            const sidebar = document.querySelector("aside");
-            const menuBtn = document.getElementById("mobile-menu-btn");
-            
-            if (window.innerWidth < 768 && sidebar && !sidebar.contains(e.target) && !menuBtn.contains(e.target)) {
-                sidebar.classList.add("-translate-x-full");
-            }
-        });
+        // Close mobile menu when clicking backdrop
+        const backdrop = document.getElementById("mobile-backdrop");
+        if (backdrop) {
+            backdrop.addEventListener("click", function() {
+                const sidebar = document.querySelector("aside");
+                if (sidebar) {
+                    sidebar.classList.add("-translate-x-full");
+                    backdrop.classList.add("hidden");
+                }
+            });
+        }
 
         // Responsive sidebar
         function handleResize() {
             const sidebar = document.querySelector("aside");
             const main = document.querySelector("main");
-            
+            const backdrop = document.getElementById("mobile-backdrop");
+
             if (window.innerWidth < 768) {
+                // Mobile: esconder sidebar e remover margem do main
                 if (sidebar) sidebar.classList.add("-translate-x-full");
                 if (main) main.classList.remove("ml-64");
+                if (backdrop) backdrop.classList.add("hidden");
             } else {
+                // Desktop: mostrar sidebar e adicionar margem do main
                 if (sidebar) sidebar.classList.remove("-translate-x-full");
                 if (main) main.classList.add("ml-64");
+                if (backdrop) backdrop.classList.add("hidden");
             }
         }
 

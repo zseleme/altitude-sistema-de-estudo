@@ -259,6 +259,13 @@ function createTables($pdo) {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tentativas_usuario ON simulado_tentativas(usuario_id)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tentativas_simulado ON simulado_tentativas(simulado_id)");
 
+    // Adicionar coluna analise_ia_desempenho se não existir
+    try {
+        $pdo->exec("ALTER TABLE simulado_tentativas ADD COLUMN analise_ia_desempenho TEXT");
+    } catch (PDOException $e) {
+        // Coluna já existe, ignorar erro
+    }
+
     // Tabelas de inglês
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS ingles_anotacoes (

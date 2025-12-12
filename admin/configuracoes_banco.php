@@ -24,13 +24,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = $_POST['pg_password'] ?? '';
         $schema = trim($_POST['pg_schema'] ?? 'public');
 
-        try {
-            // Testar conexão primeiro
-            $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
-            $testPdo = new PDO($dsn, $user, $password, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-            ]);
-            $testPdo->exec("SET search_path TO $schema");
+        // Validar schema name para prevenir SQL injection
+        // PostgreSQL schema names podem conter apenas letras, números, underscore e hífen
+        // e devem começar com letra ou underscore
+        if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_-]*$/', $schema)) {
+            $message = 'Nome do schema inválido. Use apenas letras, números, underscore e hífen, começando com letra ou underscore.';
+            $messageType = 'error';
+        } else {
+            try {
+                // Testar conexão primeiro
+                $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
+                $testPdo = new PDO($dsn, $user, $password, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+                ]);
+                // Escapar o schema name para PostgreSQL (identificadores usam aspas duplas)
+                // A validação regex acima garante apenas caracteres seguros, mas ainda precisamos escapar aspas duplas
+                $quotedSchema = '"' . str_replace('"', '""', $schema) . '"';
+                $testPdo->exec("SET search_path TO $quotedSchema");
 
             // Se funcionou, atualizar config/database.php
             $configContent = "<?php
@@ -189,6 +199,7 @@ class Database {
             $message = 'Erro ao conectar ao PostgreSQL: ' . $e->getMessage();
             $messageType = 'error';
         }
+        } // Fecha o else block da validação do schema
     } elseif ($action === 'back_to_sqlite') {
         // Voltar para SQLite
         $configContent = file_get_contents(__DIR__ . '/../config/database.example.php');
