@@ -210,7 +210,7 @@ try {
 
             // Atualizar tentativa
             $query = "UPDATE simulado_tentativas
-                      SET finalizado = 1, data_fim = NOW(), nota = :nota,
+                      SET finalizado = 1, data_fim = CURRENT_TIMESTAMP, nota = :nota,
                           questoes_corretas = :corretas, questoes_totais = :total
                       WHERE id = :tentativa_id AND usuario_id = :usuario_id";
 
