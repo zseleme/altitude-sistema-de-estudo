@@ -408,7 +408,11 @@ $content .= '
 
                             // Formatar data
                             $dataObj = new DateTime($entrada['data_entrada']);
-                            $dataFormatada = strftime('%A, %d de %B de %Y', $dataObj->getTimestamp());
+                            $diasSemana = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+                            $meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+                            $diaSemana = $diasSemana[(int)$dataObj->format('w')];
+                            $mes = $meses[(int)$dataObj->format('n') - 1];
+                            $dataFormatada = $diaSemana . ', ' . $dataObj->format('d') . ' de ' . $mes . ' de ' . $dataObj->format('Y');
 
                             // Verificar se é hoje
                             $hoje = date('Y-m-d');
@@ -632,6 +636,24 @@ $content .= '
                         .replace(/\n\n/g, "</p><p>")
                         .replace(/\n/g, "<br>");
 
+                    let buttonsHtml = "";
+                    if (entryId) {
+                        buttonsHtml = `
+                            <div class="mt-6 flex gap-3 justify-end">
+                                <button onclick="closeReviewModal()"
+                                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">
+                                    <i class="fas fa-times mr-2"></i>
+                                    Fechar
+                                </button>
+                                <button onclick="closeAndReload()"
+                                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                                    <i class="fas fa-check mr-2"></i>
+                                    OK, Entendi
+                                </button>
+                            </div>
+                        `;
+                    }
+
                     content.innerHTML = `
                         <div class="prose max-w-none">
                             <div class="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-lg mb-6">
@@ -652,20 +674,7 @@ $content .= '
                                 </p>
                             </div>
 
-                            ${entryId ? `
-                            <div class="mt-6 flex gap-3 justify-end">
-                                <button onclick="closeReviewModal()"
-                                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">
-                                    <i class="fas fa-times mr-2"></i>
-                                    Fechar
-                                </button>
-                                <button onclick="closeAndReload()"
-                                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
-                                    <i class="fas fa-check mr-2"></i>
-                                    OK, Entendi
-                                </button>
-                            </div>
-                            ` : ''}
+                            ${buttonsHtml}
                         </div>
                     `;
                 }
