@@ -549,12 +549,7 @@ $content .= '
                     .then(data => {
                         if (data.success) {
                             reviewsCache[entryId] = data.review;
-                            displayReview(data.review);
-
-                            // Recarregar página após 2 segundos para mostrar botão "Ver Revisão"
-                            setTimeout(() => {
-                                window.location.reload();
-                            }, 2000);
+                            displayReview(data.review, entryId);
                         } else {
                             content.innerHTML = `
                                 <div class="p-6 bg-red-50 border border-red-200 rounded-lg">
@@ -627,7 +622,7 @@ $content .= '
                     }
                 }
 
-                function displayReview(reviewText) {
+                function displayReview(reviewText, entryId = null) {
                     const content = document.getElementById("reviewContent");
 
                     // Formatar o texto da revisão (Markdown simples)
@@ -656,18 +651,48 @@ $content .= '
                                     <strong>Dica:</strong> Use esta revisão para aprender com seus erros e melhorar sua escrita em inglês!
                                 </p>
                             </div>
+
+                            ${entryId ? `
+                            <div class="mt-6 flex gap-3 justify-end">
+                                <button onclick="closeReviewModal()"
+                                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">
+                                    <i class="fas fa-times mr-2"></i>
+                                    Fechar
+                                </button>
+                                <button onclick="closeAndReload()"
+                                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                                    <i class="fas fa-check mr-2"></i>
+                                    OK, Entendi
+                                </button>
+                            </div>
+                            ` : ''}
                         </div>
                     `;
+                }
+
+                function closeAndReload() {
+                    closeReviewModal();
+                    window.location.reload();
                 }
 
                 function closeReviewModal() {
                     document.getElementById("reviewModal").classList.add("hidden");
                 }
 
-                // Fechar modal ao clicar fora
-                document.getElementById("reviewModal").addEventListener("click", function(e) {
-                    if (e.target === this) {
-                        closeReviewModal();
+                // Fechar modal ao clicar fora (desabilitado para evitar fechamento acidental)
+                // document.getElementById("reviewModal").addEventListener("click", function(e) {
+                //     if (e.target === this) {
+                //         closeReviewModal();
+                //     }
+                // });
+
+                // Fechar modal ao pressionar ESC
+                document.addEventListener("keydown", function(e) {
+                    if (e.key === "Escape") {
+                        const modal = document.getElementById("reviewModal");
+                        if (!modal.classList.contains("hidden")) {
+                            closeReviewModal();
+                        }
                     }
                 });
                 </script>';

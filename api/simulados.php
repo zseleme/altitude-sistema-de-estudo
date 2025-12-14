@@ -322,6 +322,34 @@ try {
             }
             break;
 
+        case 'minhas_tentativas':
+            $simulado_id = $_GET['simulado_id'] ?? 0;
+
+            $query = "SELECT t.*, s.titulo, s.disciplina
+                      FROM simulado_tentativas t
+                      INNER JOIN simulados s ON t.simulado_id = s.id
+                      WHERE t.usuario_id = :usuario_id";
+
+            if ($simulado_id > 0) {
+                $query .= " AND t.simulado_id = :simulado_id";
+            }
+
+            $query .= " AND t.finalizado = 1
+                       ORDER BY t.data_inicio DESC
+                       LIMIT 20";
+
+            $stmt = $db->prepare($query);
+            $stmt->bindValue(':usuario_id', $userId, PDO::PARAM_INT);
+
+            if ($simulado_id > 0) {
+                $stmt->bindValue(':simulado_id', $simulado_id, PDO::PARAM_INT);
+            }
+
+            $stmt->execute();
+
+            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['error' => 'Ação inválida']);
