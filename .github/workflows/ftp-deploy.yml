@@ -19,7 +19,7 @@ jobs:
         id: target
         run: |
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "folder=/seleme.pt/" >> $GITHUB_OUTPUT
+            echo "folder=/altitude.zaiden.eng.br/" >> $GITHUB_OUTPUT
             echo "environment=Produção" >> $GITHUB_OUTPUT
             echo "color=green" >> $GITHUB_OUTPUT
           elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
