@@ -121,6 +121,119 @@ $content = '
     </div>
 </div>
 
+<!-- Modal de Confirmação -->
+<div id="modalConfirmar" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full transform transition-all">
+        <div class="p-6">
+            <div class="text-center mb-4">
+                <div class="mx-auto w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
+                    <i class="fas fa-question-circle text-3xl text-yellow-600"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-900 mb-2">Finalizar Simulado?</h3>
+                <p class="text-gray-600">Você tem certeza que deseja finalizar o simulado? Esta ação não pode ser desfeita.</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="fecharModalConfirmar()"
+                    class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">
+                    Cancelar
+                </button>
+                <button onclick="confirmarFinalizacao()"
+                    class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Tempo Esgotado -->
+<div id="modalTempoEsgotado" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full transform transition-all">
+        <div class="bg-gradient-to-br from-red-500 to-red-600 text-white p-6 rounded-t-2xl text-center">
+            <div class="mb-4">
+                <i class="fas fa-clock text-6xl opacity-90"></i>
+            </div>
+            <h2 class="text-2xl font-bold">Tempo Esgotado!</h2>
+        </div>
+        <div class="p-6 text-center">
+            <p class="text-gray-600 mb-4">O tempo do simulado acabou. Seu progresso será salvo automaticamente.</p>
+            <button onclick="fecharModalTempoEsgotado()"
+                class="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                Continuar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Resultado -->
+<div id="modalResultado" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all animate-scale-in">
+        <!-- Header do Modal -->
+        <div class="bg-gradient-to-br from-blue-500 to-purple-600 text-white p-6 rounded-t-2xl text-center">
+            <div class="mb-4">
+                <i class="fas fa-trophy text-6xl opacity-90"></i>
+            </div>
+            <h2 class="text-2xl font-bold">Simulado Finalizado!</h2>
+        </div>
+
+        <!-- Corpo do Modal -->
+        <div class="p-6">
+            <!-- Nota -->
+            <div class="text-center mb-6">
+                <div class="text-5xl font-bold mb-2" id="modalNota">0%</div>
+                <p class="text-gray-600">Sua pontuação</p>
+            </div>
+
+            <!-- Estatísticas -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="bg-green-50 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-green-600" id="modalCorretas">0</div>
+                    <div class="text-sm text-green-700">Acertos</div>
+                </div>
+                <div class="bg-red-50 rounded-lg p-4 text-center">
+                    <div class="text-2xl font-bold text-red-600" id="modalErradas">0</div>
+                    <div class="text-sm text-red-700">Erros</div>
+                </div>
+            </div>
+
+            <!-- Mensagem de Desempenho -->
+            <div id="modalMensagem" class="text-center mb-6 p-4 rounded-lg">
+                <!-- Preenchido via JavaScript -->
+            </div>
+
+            <!-- Botões -->
+            <div class="flex gap-3">
+                <button onclick="window.location.href=\'simulados.php\'"
+                    class="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium">
+                    <i class="fas fa-arrow-left mr-2"></i>
+                    Voltar
+                </button>
+                <button onclick="window.location.href=\'resultado_simulado.php?tentativa=\'+tentativaId"
+                    class="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                    Ver Detalhes
+                    <i class="fas fa-arrow-right ml-2"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes scaleIn {
+    from {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+.animate-scale-in {
+    animation: scaleIn 0.3s ease-out;
+}
+</style>
+
 <script>
 const simuladoId = ' . $simulado_id . ';
 const tentativaId = ' . $tentativa_id . ';
@@ -414,8 +527,16 @@ function questaoAnterior() {
     }
 }
 
-async function finalizarSimulado() {
-    if (!confirm(\'Deseja finalizar o simulado?\')) return;
+function finalizarSimulado() {
+    document.getElementById(\'modalConfirmar\').classList.remove(\'hidden\');
+}
+
+function fecharModalConfirmar() {
+    document.getElementById(\'modalConfirmar\').classList.add(\'hidden\');
+}
+
+async function confirmarFinalizacao() {
+    fecharModalConfirmar();
 
     try {
         const formData = new FormData();
@@ -429,13 +550,62 @@ async function finalizarSimulado() {
         const result = await response.json();
 
         if (result.success) {
-            alert(`Simulado finalizado!\\n\\nNota: ${result.nota}%\\nAcertos: ${result.corretas}/${result.total}`);
-            window.location.href = `resultado_simulado.php?tentativa=${tentativaId}`;
+            mostrarModalResultado(result);
         }
     } catch (error) {
         console.error(\'Erro:\', error);
         alert(\'Erro ao finalizar simulado\');
     }
+}
+
+function mostrarModalResultado(result) {
+    const nota = parseFloat(result.nota);
+    const corretas = result.corretas;
+    const total = result.total;
+    const erradas = total - corretas;
+
+    // Preencher dados do modal
+    document.getElementById(\'modalNota\').textContent = nota.toFixed(1) + \'%\';
+    document.getElementById(\'modalCorretas\').textContent = corretas;
+    document.getElementById(\'modalErradas\').textContent = erradas;
+
+    // Mensagem personalizada baseada no desempenho
+    const modalMensagem = document.getElementById(\'modalMensagem\');
+    if (nota >= 70) {
+        modalMensagem.className = \'text-center mb-6 p-4 rounded-lg bg-green-50 border-2 border-green-200\';
+        modalMensagem.innerHTML = `
+            <div class="text-green-700">
+                <i class="fas fa-star text-2xl mb-2"></i>
+                <p class="font-bold text-lg">Parabéns! Excelente desempenho!</p>
+                <p class="text-sm">Você está no caminho certo. Continue assim!</p>
+            </div>
+        `;
+        // Mudar ícone do header para estrela
+        document.querySelector(\'#modalResultado .fa-trophy\').className = \'fas fa-star text-6xl opacity-90\';
+    } else if (nota >= 50) {
+        modalMensagem.className = \'text-center mb-6 p-4 rounded-lg bg-yellow-50 border-2 border-yellow-200\';
+        modalMensagem.innerHTML = `
+            <div class="text-yellow-700">
+                <i class="fas fa-thumbs-up text-2xl mb-2"></i>
+                <p class="font-bold text-lg">Bom trabalho!</p>
+                <p class="text-sm">Você está progredindo. Revise os erros para melhorar ainda mais.</p>
+            </div>
+        `;
+        document.querySelector(\'#modalResultado .fa-trophy\').className = \'fas fa-thumbs-up text-6xl opacity-90\';
+    } else {
+        modalMensagem.className = \'text-center mb-6 p-4 rounded-lg bg-orange-50 border-2 border-orange-200\';
+        modalMensagem.innerHTML = `
+            <div class="text-orange-700">
+                <i class="fas fa-book-reader text-2xl mb-2"></i>
+                <p class="font-bold text-lg">Continue estudando!</p>
+                <p class="text-sm">Revise o conteúdo e pratique mais. Você vai conseguir!</p>
+            </div>
+        `;
+        document.querySelector(\'#modalResultado .fa-trophy\').className = \'fas fa-book-reader text-6xl opacity-90\';
+    }
+
+    // Mostrar modal
+    document.getElementById(\'modalResultado\').classList.remove(\'hidden\');
 }
 
 function iniciarTimer(segundos) {
@@ -452,10 +622,18 @@ function iniciarTimer(segundos) {
 
         if (tempoRestante <= 0) {
             clearInterval(timerInterval);
-            alert(\'Tempo esgotado!\');
-            finalizarSimulado();
+            mostrarModalTempoEsgotado();
         }
     }, 1000);
+}
+
+function mostrarModalTempoEsgotado() {
+    document.getElementById(\'modalTempoEsgotado\').classList.remove(\'hidden\');
+}
+
+function fecharModalTempoEsgotado() {
+    document.getElementById(\'modalTempoEsgotado\').classList.add(\'hidden\');
+    confirmarFinalizacao();
 }
 
 window.addEventListener(\'beforeunload\', function(e) {
