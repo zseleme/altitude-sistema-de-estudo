@@ -117,18 +117,82 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 throw new Exception('O arquivo deve ter extensão .db para SQLite');
             }
 
+            // Criar arquivo temporário para validação
+            $tempFile = sys_get_temp_dir() . '/restore_temp_' . uniqid() . '.db';
+            if (!move_uploaded_file($file['tmp_name'], $tempFile)) {
+                throw new Exception('Erro ao processar arquivo de upload');
+            }
+
+            // Validar se o arquivo é um banco SQLite válido
+            try {
+                $testPdo = new PDO('sqlite:' . $tempFile);
+                $testPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+                // Testar integridade do banco
+                $result = $testPdo->query("PRAGMA integrity_check")->fetch();
+                if ($result[0] !== 'ok') {
+                    throw new Exception('Arquivo de backup está corrompido');
+                }
+
+                // Verificar se tem as tabelas principais
+                $tables = $testPdo->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(PDO::FETCH_COLUMN);
+                if (empty($tables)) {
+                    throw new Exception('Arquivo de backup não contém tabelas');
+                }
+
+                $testPdo = null; // Fechar conexão de teste
+            } catch (PDOException $e) {
+                unlink($tempFile);
+                throw new Exception('Arquivo não é um banco SQLite válido: ' . $e->getMessage());
+            }
+
             $dbPath = DB_PATH;
             $backupPath = $dbPath . '.backup_' . date('Y-m-d_H-i-s');
 
-            // Fazer backup do arquivo atual
+            // Fechar todas as conexões PDO ativas antes de substituir o arquivo
+            $pdo = $db->getConnection();
+            $pdo = null;
+
+            // Fazer backup do arquivo atual usando VACUUM INTO (mais seguro)
             if (file_exists($dbPath)) {
-                copy($dbPath, $backupPath);
+                try {
+                    // Tentar criar backup com VACUUM
+                    $backupPdo = new PDO('sqlite:' . $dbPath);
+                    $backupPdo->exec("VACUUM INTO " . $backupPdo->quote($backupPath));
+                    $backupPdo = null;
+                } catch (Exception $e) {
+                    // Se falhar, usar cópia simples
+                    if (!copy($dbPath, $backupPath)) {
+                        unlink($tempFile);
+                        throw new Exception('Erro ao criar backup do arquivo atual');
+                    }
+                }
             }
 
-            // Substituir com o arquivo enviado
-            if (move_uploaded_file($file['tmp_name'], $dbPath)) {
+            // Substituir com o arquivo validado
+            if (copy($tempFile, $dbPath)) {
+                unlink($tempFile);
+
+                // Verificar integridade do arquivo restaurado
+                try {
+                    $verifyPdo = new PDO('sqlite:' . $dbPath);
+                    $result = $verifyPdo->query("PRAGMA integrity_check")->fetch();
+                    $verifyPdo = null;
+
+                    if ($result[0] !== 'ok') {
+                        // Restaurar backup anterior
+                        copy($backupPath, $dbPath);
+                        throw new Exception('Falha na verificação de integridade após restauração');
+                    }
+                } catch (Exception $e) {
+                    // Restaurar backup anterior
+                    copy($backupPath, $dbPath);
+                    throw new Exception('Erro ao verificar banco restaurado: ' . $e->getMessage());
+                }
+
                 $success = 'Base de dados restaurada com sucesso! Backup anterior salvo em: ' . basename($backupPath);
             } else {
+                unlink($tempFile);
                 throw new Exception('Erro ao mover arquivo de backup');
             }
         } else {

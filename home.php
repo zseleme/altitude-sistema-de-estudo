@@ -1,5 +1,4 @@
 <?php
-// Teste de deploy FTP - 2025-12-06
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
