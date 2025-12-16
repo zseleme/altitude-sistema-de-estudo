@@ -1,16 +1,14 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-require_once __DIR__ . '/../includes/auth.php';
-requireAdmin();
-
-$db = Database::getInstance();
-$success = '';
-$error = '';
-
-// Processar download do backup
+// IMPORTANTE: Processar download ANTES de qualquer output para evitar corrupção do arquivo binário
 if (isset($_GET['action']) && $_GET['action'] === 'download') {
+    // Iniciar sessão e autenticação apenas para validar permissões
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    require_once __DIR__ . '/../includes/auth.php';
+    requireAdmin();
+
+    $db = Database::getInstance();
     try {
         $dbType = $db->getDbType();
         $backupFile = '';
@@ -31,9 +29,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
 
                     // Verificar se o arquivo foi criado e tem tamanho válido
                     if (file_exists($tempBackup) && filesize($tempBackup) > 0) {
+                        // Limpar qualquer output buffer para evitar corrupção
+                        if (ob_get_level()) {
+                            ob_end_clean();
+                        }
+
                         header('Content-Type: application/octet-stream');
                         header('Content-Disposition: attachment; filename="' . $filename . '.db"');
                         header('Content-Length: ' . filesize($tempBackup));
+                        header('Cache-Control: must-revalidate');
+                        header('Pragma: public');
                         readfile($tempBackup);
 
                         // Limpar arquivo temporário
@@ -49,9 +54,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
 
                     // Criar cópia do arquivo
                     if (copy($dbPath, $tempBackup)) {
+                        // Limpar qualquer output buffer para evitar corrupção
+                        if (ob_get_level()) {
+                            ob_end_clean();
+                        }
+
                         header('Content-Type: application/octet-stream');
                         header('Content-Disposition: attachment; filename="' . $filename . '.db"');
                         header('Content-Length: ' . filesize($tempBackup));
+                        header('Cache-Control: must-revalidate');
+                        header('Pragma: public');
                         readfile($tempBackup);
 
                         // Limpar arquivo temporário
@@ -84,9 +96,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
             exec($command, $output, $returnCode);
 
             if ($returnCode === 0 && file_exists($dumpFile)) {
+                // Limpar qualquer output buffer para evitar corrupção
+                if (ob_get_level()) {
+                    ob_end_clean();
+                }
+
                 header('Content-Type: application/sql');
                 header('Content-Disposition: attachment; filename="' . $filename . '.sql"');
                 header('Content-Length: ' . filesize($dumpFile));
+                header('Cache-Control: must-revalidate');
+                header('Pragma: public');
                 readfile($dumpFile);
                 unlink($dumpFile);
                 exit;
@@ -95,8 +114,29 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
             }
         }
     } catch (Exception $e) {
-        $error = 'Erro ao fazer download do backup: ' . $e->getMessage();
+        // Em caso de erro no download, redirecionar para mostrar mensagem
+        session_start();
+        $_SESSION['download_error'] = $e->getMessage();
+        header('Location: database.php');
+        exit;
     }
+}
+
+// Inicialização normal (quando não é download)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/../includes/auth.php';
+requireAdmin();
+
+$db = Database::getInstance();
+$success = '';
+$error = '';
+
+// Verificar se há erro de download da sessão
+if (isset($_SESSION['download_error'])) {
+    $error = 'Erro ao fazer download do backup: ' . $_SESSION['download_error'];
+    unset($_SESSION['download_error']);
 }
 
 // Processar upload/restore do backup
@@ -125,13 +165,31 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
 
             // Validar se o arquivo é um banco SQLite válido
             try {
+                // Verificar se o arquivo tem conteúdo
+                $fileSize = filesize($tempFile);
+                if ($fileSize === 0) {
+                    unlink($tempFile);
+                    throw new Exception('O arquivo está vazio (0 bytes)');
+                }
+
+                // Verificar a assinatura do arquivo SQLite (primeiros 16 bytes devem ser "SQLite format 3\000")
+                $handle = fopen($tempFile, 'rb');
+                $header = fread($handle, 16);
+                fclose($handle);
+
+                if (substr($header, 0, 13) !== 'SQLite format') {
+                    unlink($tempFile);
+                    throw new Exception('O arquivo não é um banco SQLite válido (assinatura incorreta). Tamanho: ' . number_format($fileSize) . ' bytes. Verifique se o download foi feito corretamente.');
+                }
+
+                // Tentar abrir o banco
                 $testPdo = new PDO('sqlite:' . $tempFile);
                 $testPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
                 // Testar integridade do banco
                 $result = $testPdo->query("PRAGMA integrity_check")->fetch();
                 if ($result[0] !== 'ok') {
-                    throw new Exception('Arquivo de backup está corrompido');
+                    throw new Exception('Arquivo de backup está corrompido (falha na verificação de integridade)');
                 }
 
                 // Verificar se tem as tabelas principais
