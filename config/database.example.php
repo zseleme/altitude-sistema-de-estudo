@@ -152,5 +152,3 @@ class Database {
         return $tableName;
     }
 }
-?>
-

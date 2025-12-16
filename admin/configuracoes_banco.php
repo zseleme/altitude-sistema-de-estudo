@@ -184,8 +184,7 @@ class Database {
         }
         return \$tableName;
     }
-}
-?>";
+}";
 
             $configFile = __DIR__ . '/../config/database.php';
             if (file_put_contents($configFile, $configContent)) {
