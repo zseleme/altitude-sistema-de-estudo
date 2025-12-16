@@ -1,13 +1,24 @@
 <?php
 // IMPORTANTE: Processar download ANTES de qualquer output para evitar corrupção do arquivo binário
 if (isset($_GET['action']) && $_GET['action'] === 'download') {
-    // Iniciar sessão e autenticação apenas para validar permissões
+    // Limpar qualquer output buffer existente
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+
+    // Autenticação manual sem includes para evitar output indesejado
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
     }
-    require_once __DIR__ . '/../includes/auth.php';
-    requireAdmin();
 
+    // Verificar se está logado e é admin
+    if (!isset($_SESSION['user_id']) || !isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
+        http_response_code(403);
+        die('Acesso negado');
+    }
+
+    // Carregar configuração do banco manualmente
+    require_once __DIR__ . '/../config/database.php';
     $db = Database::getInstance();
     try {
         $dbType = $db->getDbType();
@@ -29,9 +40,19 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
 
                     // Verificar se o arquivo foi criado e tem tamanho válido
                     if (file_exists($tempBackup) && filesize($tempBackup) > 0) {
-                        // Limpar qualquer output buffer para evitar corrupção
-                        if (ob_get_level()) {
+                        // Limpar TODOS os buffers de output para evitar corrupção
+                        while (ob_get_level()) {
                             ob_end_clean();
+                        }
+
+                        // Verificar integridade antes de enviar
+                        $testPdo = new PDO('sqlite:' . $tempBackup);
+                        $result = $testPdo->query("PRAGMA integrity_check")->fetch();
+                        $testPdo = null;
+
+                        if ($result[0] !== 'ok') {
+                            unlink($tempBackup);
+                            throw new Exception('Falha na verificação de integridade do backup gerado');
                         }
 
                         header('Content-Type: application/octet-stream');
@@ -39,7 +60,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
                         header('Content-Length: ' . filesize($tempBackup));
                         header('Cache-Control: must-revalidate');
                         header('Pragma: public');
-                        readfile($tempBackup);
+
+                        // Enviar arquivo em modo binário
+                        $handle = fopen($tempBackup, 'rb');
+                        fpassthru($handle);
+                        fclose($handle);
 
                         // Limpar arquivo temporário
                         unlink($tempBackup);
@@ -54,9 +79,19 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
 
                     // Criar cópia do arquivo
                     if (copy($dbPath, $tempBackup)) {
-                        // Limpar qualquer output buffer para evitar corrupção
-                        if (ob_get_level()) {
+                        // Limpar TODOS os buffers de output para evitar corrupção
+                        while (ob_get_level()) {
                             ob_end_clean();
+                        }
+
+                        // Verificar integridade antes de enviar
+                        $testPdo = new PDO('sqlite:' . $tempBackup);
+                        $result = $testPdo->query("PRAGMA integrity_check")->fetch();
+                        $testPdo = null;
+
+                        if ($result[0] !== 'ok') {
+                            unlink($tempBackup);
+                            throw new Exception('Falha na verificação de integridade do backup gerado');
                         }
 
                         header('Content-Type: application/octet-stream');
@@ -64,7 +99,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
                         header('Content-Length: ' . filesize($tempBackup));
                         header('Cache-Control: must-revalidate');
                         header('Pragma: public');
-                        readfile($tempBackup);
+
+                        // Enviar arquivo em modo binário
+                        $handle = fopen($tempBackup, 'rb');
+                        fpassthru($handle);
+                        fclose($handle);
 
                         // Limpar arquivo temporário
                         unlink($tempBackup);
@@ -96,8 +135,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
             exec($command, $output, $returnCode);
 
             if ($returnCode === 0 && file_exists($dumpFile)) {
-                // Limpar qualquer output buffer para evitar corrupção
-                if (ob_get_level()) {
+                // Limpar TODOS os buffers de output para evitar corrupção
+                while (ob_get_level()) {
                     ob_end_clean();
                 }
 
@@ -106,7 +145,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
                 header('Content-Length: ' . filesize($dumpFile));
                 header('Cache-Control: must-revalidate');
                 header('Pragma: public');
-                readfile($dumpFile);
+
+                // Enviar arquivo em modo binário
+                $handle = fopen($dumpFile, 'rb');
+                fpassthru($handle);
+                fclose($handle);
+
                 unlink($dumpFile);
                 exit;
             } else {
