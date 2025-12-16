@@ -1,10 +1,8 @@
 <?php
 // IMPORTANTE: Processar download ANTES de qualquer output para evitar corrupção do arquivo binário
 if (isset($_GET['action']) && $_GET['action'] === 'download') {
-    // Limpar qualquer output buffer existente
-    while (ob_get_level()) {
-        ob_end_clean();
-    }
+    // Iniciar output buffering ANTES de qualquer coisa
+    ob_start();
 
     // Autenticação manual sem includes para evitar output indesejado
     if (session_status() === PHP_SESSION_NONE) {
@@ -13,6 +11,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
 
     // Verificar se está logado e é admin
     if (!isset($_SESSION['user_id']) || !isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
+        ob_end_clean();
         http_response_code(403);
         die('Acesso negado');
     }
@@ -20,6 +19,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
     // Carregar configuração do banco manualmente
     require_once __DIR__ . '/../config/database.php';
     $db = Database::getInstance();
+
+    // CRÍTICO: Limpar QUALQUER output que possa ter sido gerado pelos includes
+    // Captura e descarta tudo que foi enviado até agora
+    ob_end_clean();
     try {
         $dbType = $db->getDbType();
         $backupFile = '';
@@ -40,11 +43,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
 
                     // Verificar se o arquivo foi criado e tem tamanho válido
                     if (file_exists($tempBackup) && filesize($tempBackup) > 0) {
-                        // Limpar TODOS os buffers de output para evitar corrupção
-                        while (ob_get_level()) {
-                            ob_end_clean();
-                        }
-
                         // Verificar integridade antes de enviar
                         $testPdo = new PDO('sqlite:' . $tempBackup);
                         $result = $testPdo->query("PRAGMA integrity_check")->fetch();
@@ -55,16 +53,47 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
                             throw new Exception('Falha na verificação de integridade do backup gerado');
                         }
 
+                        // CRÍTICO: Limpar ABSOLUTAMENTE TUDO antes de enviar binário
+                        // Descartar qualquer output que possa ter sido gerado
+                        while (ob_get_level()) {
+                            ob_end_clean();
+                        }
+
+                        // Desabilitar output buffering implícito do PHP
+                        if (function_exists('apache_setenv')) {
+                            @apache_setenv('no-gzip', '1');
+                        }
+                        @ini_set('zlib.output_compression', 'Off');
+
+                        // Garantir que não há nenhum output pendente
+                        if (ob_get_length() !== false) {
+                            ob_clean();
+                        }
+
+                        // Headers HTTP para download binário
                         header('Content-Type: application/octet-stream');
                         header('Content-Disposition: attachment; filename="' . $filename . '.db"');
                         header('Content-Length: ' . filesize($tempBackup));
-                        header('Cache-Control: must-revalidate');
+                        header('Content-Transfer-Encoding: binary');
+                        header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
                         header('Pragma: public');
+                        header('Expires: 0');
 
-                        // Enviar arquivo em modo binário
+                        // Flush para garantir que headers são enviados
+                        if (ob_get_length() !== false) {
+                            ob_end_flush();
+                        }
+                        flush();
+
+                        // Enviar arquivo em modo binário puro
                         $handle = fopen($tempBackup, 'rb');
-                        fpassthru($handle);
-                        fclose($handle);
+                        if ($handle) {
+                            while (!feof($handle)) {
+                                echo fread($handle, 8192);
+                                flush();
+                            }
+                            fclose($handle);
+                        }
 
                         // Limpar arquivo temporário
                         unlink($tempBackup);
@@ -79,11 +108,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
 
                     // Criar cópia do arquivo
                     if (copy($dbPath, $tempBackup)) {
-                        // Limpar TODOS os buffers de output para evitar corrupção
-                        while (ob_get_level()) {
-                            ob_end_clean();
-                        }
-
                         // Verificar integridade antes de enviar
                         $testPdo = new PDO('sqlite:' . $tempBackup);
                         $result = $testPdo->query("PRAGMA integrity_check")->fetch();
@@ -94,16 +118,45 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
                             throw new Exception('Falha na verificação de integridade do backup gerado');
                         }
 
+                        // CRÍTICO: Limpar ABSOLUTAMENTE TUDO antes de enviar binário
+                        while (ob_get_level()) {
+                            ob_end_clean();
+                        }
+
+                        // Desabilitar output buffering implícito
+                        if (function_exists('apache_setenv')) {
+                            @apache_setenv('no-gzip', '1');
+                        }
+                        @ini_set('zlib.output_compression', 'Off');
+
+                        if (ob_get_length() !== false) {
+                            ob_clean();
+                        }
+
+                        // Headers HTTP para download binário
                         header('Content-Type: application/octet-stream');
                         header('Content-Disposition: attachment; filename="' . $filename . '.db"');
                         header('Content-Length: ' . filesize($tempBackup));
-                        header('Cache-Control: must-revalidate');
+                        header('Content-Transfer-Encoding: binary');
+                        header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
                         header('Pragma: public');
+                        header('Expires: 0');
 
-                        // Enviar arquivo em modo binário
+                        // Flush headers
+                        if (ob_get_length() !== false) {
+                            ob_end_flush();
+                        }
+                        flush();
+
+                        // Enviar arquivo em modo binário puro
                         $handle = fopen($tempBackup, 'rb');
-                        fpassthru($handle);
-                        fclose($handle);
+                        if ($handle) {
+                            while (!feof($handle)) {
+                                echo fread($handle, 8192);
+                                flush();
+                            }
+                            fclose($handle);
+                        }
 
                         // Limpar arquivo temporário
                         unlink($tempBackup);
@@ -135,21 +188,44 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
             exec($command, $output, $returnCode);
 
             if ($returnCode === 0 && file_exists($dumpFile)) {
-                // Limpar TODOS os buffers de output para evitar corrupção
+                // CRÍTICO: Limpar ABSOLUTAMENTE TUDO antes de enviar
                 while (ob_get_level()) {
                     ob_end_clean();
+                }
+
+                // Desabilitar output buffering implícito
+                if (function_exists('apache_setenv')) {
+                    @apache_setenv('no-gzip', '1');
+                }
+                @ini_set('zlib.output_compression', 'Off');
+
+                if (ob_get_length() !== false) {
+                    ob_clean();
                 }
 
                 header('Content-Type: application/sql');
                 header('Content-Disposition: attachment; filename="' . $filename . '.sql"');
                 header('Content-Length: ' . filesize($dumpFile));
-                header('Cache-Control: must-revalidate');
+                header('Content-Transfer-Encoding: binary');
+                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
                 header('Pragma: public');
+                header('Expires: 0');
 
-                // Enviar arquivo em modo binário
+                // Flush headers
+                if (ob_get_length() !== false) {
+                    ob_end_flush();
+                }
+                flush();
+
+                // Enviar arquivo
                 $handle = fopen($dumpFile, 'rb');
-                fpassthru($handle);
-                fclose($handle);
+                if ($handle) {
+                    while (!feof($handle)) {
+                        echo fread($handle, 8192);
+                        flush();
+                    }
+                    fclose($handle);
+                }
 
                 unlink($dumpFile);
                 exit;
