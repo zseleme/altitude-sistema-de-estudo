@@ -1,198 +1,381 @@
-# 📚 Sistema LMS - Plataforma de Ensino Online
+# 📚 Altitude Sistema de Estudo
 
-Sistema de gerenciamento de aprendizagem (LMS) completo, desenvolvido em PHP com suporte a PostgreSQL e SQLite.
+Sistema de gerenciamento de aprendizagem (LMS) completo desenvolvido em PHP vanilla, com suporte a PostgreSQL e SQLite, integração com IA para análise de questões, e ferramentas avançadas de estudo.
 
-## 🚀 Funcionalidades
+[![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-blue.svg)](https://www.php.net/)
+[![Database](https://img.shields.io/badge/Database-PostgreSQL%20%7C%20SQLite-green.svg)](https://www.postgresql.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## 🚀 Principais Funcionalidades
 
 ### 👨‍🎓 Para Estudantes
-- ✅ Visualização de cursos e aulas em vídeo
-- ✅ Acompanhamento de progresso
-- ✅ Sistema de anotações por aula
-- ✅ Marcação de aulas como concluídas
-- ✅ Modo teatro para visualização imersiva
-- ✅ Navegação intuitiva entre aulas
-- ✅ Dashboard com estatísticas de progresso
 
-### 🎓 Recursos de Aulas
-- 📹 Suporte a vídeos do Google Drive e outras plataformas
-- 📝 Descrições detalhadas
-- 📎 Materiais complementares para download
-- ⏱️ Duração estimada de cada aula
-- 🎯 Indicadores visuais de conclusão
+- **Gerenciamento de Cursos**
+  - Visualização de cursos por categorias
+  - Aulas em vídeo (Google Drive, YouTube, etc.)
+  - Sistema de progresso com tracking automático
+  - Dashboard com estatísticas detalhadas
+  - Certificados de conclusão
 
-### 💡 Interface e UX
-- 🎨 Design moderno com Tailwind CSS
-- 📱 Totalmente responsivo
-- 🌙 Modo teatro com overlay escurecido
-- ✨ Animações suaves
-- 🎯 Scroll automático para aula atual
-- 🟢 Indicadores visuais de progresso (barras verdes)
+- **Sistema de Simulados**
+  - Criação e resolução de simulados/provas
+  - Questões de múltipla escolha (A/B/C/D/E)
+  - Análise inteligente de respostas erradas com IA
+  - Histórico de tentativas e desempenho
+  - Timer e pontuação automática
+
+- **Ferramentas de Estudo**
+  - Anotações por aula
+  - Materiais complementares para download
+  - Modo teatro para visualização imersiva
+  - Estudo de inglês com flashcards
+  - Navegação intuitiva entre conteúdos
+
+### 🎯 Para Administradores
+
+- **Gestão de Conteúdo**
+  - CRUD completo de cursos, aulas e categorias
+  - Upload de materiais complementares
+  - Importação de playlists do YouTube
+  - Geração de certificados personalizados
+
+- **Sistema de Simulados**
+  - Criação e edição de simulados
+  - Gerenciamento de questões
+  - Análise de desempenho dos alunos
+
+- **Integração com IA**
+  - Configuração de múltiplos provedores (OpenAI, Google Gemini, Groq)
+  - Análise automática de respostas erradas
+  - Prompts personalizáveis
+  - Gerenciamento de tokens e custos
+
+## 🤖 Integração com IA
+
+O sistema oferece análise inteligente de questões através de múltiplos provedores de IA:
+
+- **OpenAI GPT-4o-mini**: Análise avançada e precisa
+- **Google Gemini 2.5 Flash**: Rápido e eficiente (padrão)
+- **Groq Llama 3.1**: Alta velocidade de inferência
+
+A IA fornece:
+- Explicação detalhada do erro cometido
+- Análise da resposta correta
+- Dicas para evitar erros similares
+- Conteúdo relacionado para estudo
 
 ## 🛠️ Tecnologias
 
-- **Backend**: PHP 7.4+
-- **Banco de Dados**: PostgreSQL 12+ / SQLite 3
-- **Frontend**: HTML5, CSS3, JavaScript (ES6+)
-- **Frameworks CSS**: Tailwind CSS
-- **Ícones**: Font Awesome 6
+### Backend
+- **PHP 7.4+**: Vanilla PHP, sem frameworks
+- **PostgreSQL 12+** / **SQLite 3**: Suporte dual-database
+- **PDO**: Prepared statements para segurança
+- **API REST**: Endpoints JSON para AJAX
+
+### Frontend
+- **Tailwind CSS**: Estilização moderna e responsiva
+- **JavaScript ES6+**: Interatividade nativa
+- **Font Awesome 6**: Biblioteca de ícones
+- **Responsive Design**: Mobile-first
+
+### DevOps
+- **GitHub Actions**: CI/CD automatizado
+- **FTP Deploy**: Deploy automático para produção/staging
+- **Version Tracking**: Controle de versões via Git
 
 ## 📋 Pré-requisitos
 
 - PHP 7.4 ou superior
-- PostgreSQL 12+ (para produção) ou SQLite 3 (para desenvolvimento)
-- Extensões PHP:
-  - PDO
-  - pdo_pgsql (para PostgreSQL)
-  - pdo_sqlite (para SQLite)
-  - mbstring
-  - json
+- PostgreSQL 12+ (produção) ou SQLite 3 (desenvolvimento)
+- Extensões PHP necessárias:
+  - `pdo`
+  - `pdo_pgsql` (para PostgreSQL)
+  - `pdo_sqlite` (para SQLite)
+  - `mbstring`
+  - `json`
+  - `curl`
 
 ## 🔧 Instalação
 
-### 1. Clone o repositório
+### Instalação Automática (Recomendado)
+
+O sistema possui **auto-instalação inteligente**. Basta acessar a aplicação:
+
+1. Clone o repositório:
 ```bash
-git clone <seu-repositorio>
-cd <nome-do-projeto>
+git clone https://github.com/seu-usuario/altitude-sistema-de-estudo.git
+cd altitude-sistema-de-estudo
 ```
 
-### 2. Configure o banco de dados
-
-#### Opção A: PostgreSQL (Produção)
+2. Inicie o servidor PHP:
 ```bash
-# Copie o arquivo de configuração de exemplo
+php -S localhost:8000
+```
+
+3. Acesse `http://localhost:8000` no navegador
+
+O sistema irá automaticamente:
+- Criar o arquivo de configuração do banco de dados
+- Criar o banco SQLite com todas as tabelas
+- Inserir dados iniciais (admin, categorias, configurações)
+
+### Credenciais Padrão
+
+Após a instalação automática:
+- **Email**: `admin@teste.com`
+- **Senha**: `admin123`
+
+**⚠️ Importante**: Altere as credenciais padrão após o primeiro acesso!
+
+### Instalação Manual (PostgreSQL)
+
+Se preferir usar PostgreSQL:
+
+1. Copie o arquivo de configuração:
+```bash
 cp config/database.example.php config/database.php
+```
 
-# Edite o arquivo com suas credenciais
-nano config/database.php
+2. Edite `config/database.php` com suas credenciais PostgreSQL
 
-# Execute o script de setup
+3. Execute o script de setup:
+```bash
 php setup_postgres.php
 ```
-
-#### Opção B: SQLite (Desenvolvimento)
-```bash
-# Execute o script de setup
-php setup_sqlite.php
-```
-
-### 3. Configure permissões
-```bash
-chmod 755 config/
-chmod 644 config/*.php
-chmod 666 config/estudos.db  # Se usar SQLite
-```
-
-### 4. Acesse o sistema
-- Abra seu navegador em `http://localhost/`
-- Use as credenciais padrão ou crie um novo usuário
 
 ## 📊 Estrutura do Projeto
 
 ```
-.
-├── assets/               # Arquivos estáticos (CSS, JS, imagens)
-│   ├── css/
-│   ├── js/
-│   └── images/
-├── config/              # Configurações do sistema
-│   ├── database.php     # Configuração do banco de dados
-│   └── estudos.db       # Banco SQLite (se aplicável)
-├── includes/            # Arquivos PHP incluídos
-│   ├── auth.php         # Autenticação e funções auxiliares
-│   └── header.php       # Header comum
-├── uploads/             # Arquivos enviados pelos usuários
-├── aula.php             # Página de visualização de aulas
-├── curso.php            # Página de detalhes do curso
-├── home.php             # Dashboard do estudante
-├── login.php            # Página de login
-├── logout.php           # Logout
-├── sync_database.php    # Script de sincronização entre bancos
-├── setup_postgres.php   # Setup PostgreSQL
-├── setup_sqlite.php     # Setup SQLite
-└── README.md            # Este arquivo
+altitude-sistema-de-estudo/
+├── admin/                      # Área administrativa
+│   ├── categorias.php          # Gestão de categorias
+│   ├── cursos.php              # Gestão de cursos
+│   ├── aulas.php               # Gestão de aulas
+│   ├── simulados.php           # Gestão de simulados
+│   ├── configuracoes_ia.php    # Configurações de IA
+│   └── ...
+├── api/                        # Endpoints REST
+│   ├── simulados.php           # API de simulados
+│   ├── analise_questao_ia.php  # Análise com IA
+│   ├── progresso.php           # Tracking de progresso
+│   ├── anotacoes.php           # Sistema de notas
+│   └── ...
+├── assets/                     # Arquivos estáticos
+│   ├── css/                    # Estilos personalizados
+│   ├── js/                     # Scripts JavaScript
+│   └── images/                 # Imagens e ícones
+├── config/                     # Configurações
+│   ├── database.php            # Config do banco (auto-gerado)
+│   ├── database.example.php    # Template de config
+│   └── estudos.db              # Banco SQLite (auto-criado)
+├── includes/                   # Bibliotecas PHP
+│   ├── auth.php                # Autenticação
+│   ├── auto_install.php        # Sistema de auto-instalação
+│   ├── ai_helper.php           # Helper de IA
+│   ├── layout.php              # Sistema de layout
+│   └── version.php             # Controle de versão
+├── ingles/                     # Sistema de inglês
+│   ├── flashcards.php          # Flashcards
+│   └── ...
+├── uploads/                    # Arquivos enviados
+│   └── certificados/           # Certificados gerados
+├── .github/workflows/          # GitHub Actions
+│   └── ftp-deploy.yml          # Deploy automatizado
+├── aula.php                    # Visualização de aulas
+├── curso.php                   # Detalhes do curso
+├── home.php                    # Dashboard
+├── simulado.php                # Interface de simulados
+├── CLAUDE.md                   # Instruções para Claude Code
+└── README.md                   # Este arquivo
 ```
 
-## 🔄 Sincronização de Dados
+## 🗄️ Arquitetura do Banco de Dados
 
-O projeto inclui um script para sincronizar dados entre PostgreSQL e SQLite:
+### Camada de Abstração
 
-```bash
-# PostgreSQL → SQLite
-php sync_database.php --from=postgresql --to=sqlite
+O sistema utiliza uma **camada de abstração customizada** em `config/database.php` que garante compatibilidade entre PostgreSQL e SQLite:
 
-# SQLite → PostgreSQL
-php sync_database.php --from=sqlite --to=postgresql
+```php
+$db = Database::getInstance();
 
-# Com truncate (limpa destino antes)
-php sync_database.php --from=postgresql --to=sqlite --truncate
+// Detectar tipo de banco
+if ($db->isSQLite()) {
+    // SQL específico para SQLite
+} else {
+    // SQL específico para PostgreSQL
+}
 
-# Sincronizar apenas tabelas específicas
-php sync_database.php --from=postgresql --to=sqlite --tables=usuarios,cursos,aulas
+// Helpers de compatibilidade
+$db->getBoolTrue();   // TRUE ou 1
+$db->getBoolFalse();  // FALSE ou 0
 ```
 
-## 📚 Banco de Dados
+### Principais Tabelas
 
-### Tabelas Principais
-
-- **usuarios**: Gerenciamento de usuários
+- **usuarios**: Usuários do sistema
 - **categorias**: Categorias de cursos
 - **cursos**: Cursos disponíveis
 - **aulas**: Aulas de cada curso
 - **materiais_complementares**: Materiais de apoio
+- **simulados**: Simulados/provas
+- **simulado_questoes**: Questões dos simulados
+- **simulado_tentativas**: Tentativas dos alunos
+- **simulado_respostas**: Respostas (com análise IA)
+- **progresso_aulas**: Progresso por aula
+- **progresso_cursos**: Progresso por curso
 - **anotacoes**: Anotações dos estudantes
-- **progresso_aulas**: Tracking de progresso
-- **progresso_cursos**: Estatísticas de progresso
+- **configuracoes**: Configurações do sistema (incluindo IA)
+- **ingles_***: Tabelas do sistema de inglês
 
-## 🎨 Características da Interface
+**Nota**: Todo o schema está definido em `includes/auto_install.php` - não há sistema de migrations separado.
+
+## 🎨 Interface e UX
+
+### Design Responsivo
+- Layout adaptativo para desktop, tablet e mobile
+- Sidebar retrátil em dispositivos móveis
+- Grid system com Tailwind CSS
+- Componentes reutilizáveis
 
 ### Modo Teatro
-- Tela escurecida com overlay
-- Vídeo centralizado e ampliado
-- 3 formas de sair:
-  - Tecla `ESC`
-  - Clique no botão
-  - Clique fora do vídeo
+- Visualização imersiva de vídeos
+- Overlay escurecido
+- Controles de navegação
+- Saída via ESC, clique fora ou botão
 
-### Lista de Aulas
-- ✅ Barra verde (4px) para aulas concluídas
-- 🔵 Destaque azul para aula atual
-- 📜 Scroll automático para aula em reprodução
-- ⏱️ Duração real de cada aula
-- ✓ Ícone de check para aulas finalizadas
-
-### Navegação
-- Botões "Anterior" e "Próxima"
-- Breadcrumb de navegação
-- Links rápidos entre aulas
+### Indicadores Visuais
+- Barras de progresso verdes
+- Badges de conclusão
+- Scroll automático para conteúdo atual
+- Feedback visual em ações
 
 ## 🔐 Segurança
 
-- ✅ Senhas hashadas com `password_hash()`
-- ✅ Proteção contra SQL Injection (prepared statements)
-- ✅ Sanitização de HTML com `htmlspecialchars()`
-- ✅ Validação de sessões
-- ✅ Controle de acesso por páginas
+- ✅ **Autenticação**: Sistema de sessões seguro
+- ✅ **Senhas**: Hash com `password_hash()` (bcrypt)
+- ✅ **SQL Injection**: Prepared statements (PDO)
+- ✅ **XSS**: Sanitização com `htmlspecialchars()`
+- ✅ **CSRF**: Validação de origem de requisições
+- ✅ **Controle de Acesso**: `requireLogin()` e `requireAdmin()`
+
+## 🚀 Deploy
+
+### Deploy Automatizado (GitHub Actions)
+
+O projeto possui deploy **totalmente automatizado**:
+
+- **Push para `main`** → Deploy em **produção** (seleme.pt)
+- **Push para `develop`** → Deploy em **staging** (dev.seleme.pt)
+
+O workflow (`ftp-deploy.yml`) executa:
+1. Validação de sintaxe PHP
+2. Geração de `version.json`
+3. Deploy via FTP
+4. Exclusão de arquivos desnecessários
+
+### Deploy Manual
+
+```bash
+# 1. Validar sintaxe PHP
+find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \;
+
+# 2. Fazer upload via FTP/SFTP
+# Excluir: .git, .github, node_modules, .env, config/database.php
+
+# 3. Configurar permissões no servidor
+chmod 755 config/
+chmod 666 config/estudos.db  # Se usar SQLite
+```
+
+## 📈 Sistema de Versões
+
+O sistema detecta automaticamente o ambiente:
+
+- **Produção**: Arquivo `version.json` com env=Produção
+- **Desenvolvimento**: Arquivo `version.json` com env=Desenvolvimento
+- **Local**: Presença de pasta `.git/`
+
+Versão exibida no rodapé da sidebar com código de cores:
+- 🟢 Verde: Produção
+- 🟡 Amarelo: Desenvolvimento
+- ⚪ Cinza: Local
+
+## 🧪 Desenvolvimento
+
+### Servidor Local
+
+```bash
+# Iniciar servidor PHP
+php -S localhost:8000
+
+# Acessar aplicação
+http://localhost:8000
+```
+
+### Boas Práticas
+
+1. **Compatibilidade SQL**: Sempre teste queries em ambos os bancos
+2. **Prepared Statements**: Use sempre para queries dinâmicas
+3. **Layout System**: Use `renderLayout()` para páginas padrão
+4. **API Pattern**: Siga o padrão switch/case em `api/`
+5. **Sem Over-engineering**: Mantenha simplicidade
+
+### Exemplo de Query Compatível
+
+```php
+// ✅ Correto - Compatível com ambos
+$isTrue = $db->isSQLite() ? 1 : 'TRUE';
+$query = "SELECT * FROM table WHERE active = $isTrue";
+
+// ❌ Errado - MySQL-specific
+$query = "INSERT ... ON DUPLICATE KEY UPDATE ...";
+
+// ✅ Correto - Padrão manual
+$existing = $db->fetchOne("SELECT id FROM table WHERE key = ?", [$key]);
+if ($existing) {
+    $db->execute("UPDATE table SET value = ?", [$value]);
+} else {
+    $db->execute("INSERT INTO table (key, value) VALUES (?, ?)", [$key, $value]);
+}
+```
 
 ## 🤝 Contribuindo
 
 1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/MinhaFeature`)
-3. Commit suas mudanças (`git commit -m 'Adiciona MinhaFeature'`)
-4. Push para a branch (`git push origin feature/MinhaFeature`)
-5. Abra um Pull Request
+2. Crie uma branch: `git checkout -b feature/MinhaFeature`
+3. Commit: `git commit -m 'feat: adiciona MinhaFeature'`
+4. Push: `git push origin feature/MinhaFeature`
+5. Abra um Pull Request para `develop`
+
+### Convenções
+
+- **Commits**: Siga [Conventional Commits](https://www.conventionalcommits.org/)
+- **Código**: PSR-12 para PHP, ESLint para JavaScript
+- **Branches**: `feature/`, `fix/`, `docs/`, etc.
+- **PRs**: Sempre para `develop`, nunca direto para `main`
 
 ## 📝 Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
+Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
-## 👨‍💻 Autor
+## 👨‍💻 Autores
 
-Desenvolvido com ❤️ para facilitar o aprendizado online.
+Desenvolvido com dedicação para democratizar o acesso à educação de qualidade.
 
-## 📞 Suporte
+## 🐛 Suporte
 
-Para suporte, abra uma issue no repositório ou entre em contato através do email de suporte.
+- **Issues**: [GitHub Issues](https://github.com/seu-usuario/altitude-sistema-de-estudo/issues)
+- **Documentação**: Veja [CLAUDE.md](CLAUDE.md) para detalhes técnicos
+- **Email**: suporte@seleme.pt
+
+## 🌟 Agradecimentos
+
+- [Tailwind CSS](https://tailwindcss.com/) - Framework CSS
+- [Font Awesome](https://fontawesome.com/) - Ícones
+- [OpenAI](https://openai.com/), [Google Gemini](https://deepmind.google/technologies/gemini/), [Groq](https://groq.com/) - Provedores de IA
 
 ---
 
 ⭐ Se este projeto foi útil para você, considere dar uma estrela no repositório!
+
+**Desenvolvido com ❤️ pela equipe Altitude**

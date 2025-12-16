@@ -1,30 +1,170 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-require_once __DIR__ . '/../includes/auth.php';
-requireAdmin();
-
-$db = Database::getInstance();
-$success = '';
-$error = '';
-
-// Processar download do backup
+// IMPORTANTE: Processar download ANTES de qualquer output para evitar corrupção do arquivo binário
 if (isset($_GET['action']) && $_GET['action'] === 'download') {
+    // Iniciar output buffering ANTES de qualquer coisa
+    ob_start();
+
+    // Autenticação manual sem includes para evitar output indesejado
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    // Verificar se está logado e é admin
+    if (!isset($_SESSION['user_id']) || !isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
+        ob_end_clean();
+        http_response_code(403);
+        die('Acesso negado');
+    }
+
+    // Carregar configuração do banco manualmente
+    require_once __DIR__ . '/../config/database.php';
+    $db = Database::getInstance();
+
+    // CRÍTICO: Limpar QUALQUER output que possa ter sido gerado pelos includes
+    // Captura e descarta tudo que foi enviado até agora
+    ob_end_clean();
     try {
         $dbType = $db->getDbType();
         $backupFile = '';
         $filename = 'backup_' . date('Y-m-d_H-i-s');
 
         if ($dbType === 'sqlite') {
-            // Para SQLite, copiar o arquivo .db
+            // Para SQLite, usar VACUUM INTO para criar backup seguro
             $dbPath = DB_PATH;
             if (file_exists($dbPath)) {
-                header('Content-Type: application/octet-stream');
-                header('Content-Disposition: attachment; filename="' . $filename . '.db"');
-                header('Content-Length: ' . filesize($dbPath));
-                readfile($dbPath);
-                exit;
+                // Criar arquivo temporário para o backup
+                $tempBackup = sys_get_temp_dir() . '/' . $filename . '.db';
+
+                try {
+                    // Usar VACUUM INTO para criar backup consistente
+                    // Este método é mais seguro pois garante que o backup seja uma cópia consistente
+                    $pdo = $db->getConnection();
+                    $pdo->exec("VACUUM INTO " . $pdo->quote($tempBackup));
+
+                    // Verificar se o arquivo foi criado e tem tamanho válido
+                    if (file_exists($tempBackup) && filesize($tempBackup) > 0) {
+                        // Verificar integridade antes de enviar
+                        $testPdo = new PDO('sqlite:' . $tempBackup);
+                        $result = $testPdo->query("PRAGMA integrity_check")->fetch();
+                        $testPdo = null;
+
+                        if ($result[0] !== 'ok') {
+                            unlink($tempBackup);
+                            throw new Exception('Falha na verificação de integridade do backup gerado');
+                        }
+
+                        // CRÍTICO: Limpar ABSOLUTAMENTE TUDO antes de enviar binário
+                        // Descartar qualquer output que possa ter sido gerado
+                        while (ob_get_level()) {
+                            ob_end_clean();
+                        }
+
+                        // Desabilitar output buffering implícito do PHP
+                        if (function_exists('apache_setenv')) {
+                            @apache_setenv('no-gzip', '1');
+                        }
+                        @ini_set('zlib.output_compression', 'Off');
+
+                        // Garantir que não há nenhum output pendente
+                        if (ob_get_length() !== false) {
+                            ob_clean();
+                        }
+
+                        // Headers HTTP para download binário
+                        header('Content-Type: application/octet-stream');
+                        header('Content-Disposition: attachment; filename="' . $filename . '.db"');
+                        header('Content-Length: ' . filesize($tempBackup));
+                        header('Content-Transfer-Encoding: binary');
+                        header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                        header('Pragma: public');
+                        header('Expires: 0');
+
+                        // Flush para garantir que headers são enviados
+                        if (ob_get_length() !== false) {
+                            ob_end_flush();
+                        }
+                        flush();
+
+                        // Enviar arquivo em modo binário puro
+                        $handle = fopen($tempBackup, 'rb');
+                        if ($handle) {
+                            while (!feof($handle)) {
+                                echo fread($handle, 8192);
+                                flush();
+                            }
+                            fclose($handle);
+                        }
+
+                        // Limpar arquivo temporário
+                        unlink($tempBackup);
+                        exit;
+                    } else {
+                        throw new Exception('Falha ao criar arquivo de backup');
+                    }
+                } catch (Exception $e) {
+                    // Se VACUUM INTO falhar (SQLite antigo), usar método alternativo
+                    // Fechar todas as conexões, copiar o arquivo, e reabrir
+                    $pdo = null;
+
+                    // Criar cópia do arquivo
+                    if (copy($dbPath, $tempBackup)) {
+                        // Verificar integridade antes de enviar
+                        $testPdo = new PDO('sqlite:' . $tempBackup);
+                        $result = $testPdo->query("PRAGMA integrity_check")->fetch();
+                        $testPdo = null;
+
+                        if ($result[0] !== 'ok') {
+                            unlink($tempBackup);
+                            throw new Exception('Falha na verificação de integridade do backup gerado');
+                        }
+
+                        // CRÍTICO: Limpar ABSOLUTAMENTE TUDO antes de enviar binário
+                        while (ob_get_level()) {
+                            ob_end_clean();
+                        }
+
+                        // Desabilitar output buffering implícito
+                        if (function_exists('apache_setenv')) {
+                            @apache_setenv('no-gzip', '1');
+                        }
+                        @ini_set('zlib.output_compression', 'Off');
+
+                        if (ob_get_length() !== false) {
+                            ob_clean();
+                        }
+
+                        // Headers HTTP para download binário
+                        header('Content-Type: application/octet-stream');
+                        header('Content-Disposition: attachment; filename="' . $filename . '.db"');
+                        header('Content-Length: ' . filesize($tempBackup));
+                        header('Content-Transfer-Encoding: binary');
+                        header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                        header('Pragma: public');
+                        header('Expires: 0');
+
+                        // Flush headers
+                        if (ob_get_length() !== false) {
+                            ob_end_flush();
+                        }
+                        flush();
+
+                        // Enviar arquivo em modo binário puro
+                        $handle = fopen($tempBackup, 'rb');
+                        if ($handle) {
+                            while (!feof($handle)) {
+                                echo fread($handle, 8192);
+                                flush();
+                            }
+                            fclose($handle);
+                        }
+
+                        // Limpar arquivo temporário
+                        unlink($tempBackup);
+                        exit;
+                    } else {
+                        throw new Exception('Erro ao criar backup: ' . $e->getMessage());
+                    }
+                }
             } else {
                 $error = 'Arquivo de banco de dados não encontrado';
             }
@@ -48,10 +188,45 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
             exec($command, $output, $returnCode);
 
             if ($returnCode === 0 && file_exists($dumpFile)) {
+                // CRÍTICO: Limpar ABSOLUTAMENTE TUDO antes de enviar
+                while (ob_get_level()) {
+                    ob_end_clean();
+                }
+
+                // Desabilitar output buffering implícito
+                if (function_exists('apache_setenv')) {
+                    @apache_setenv('no-gzip', '1');
+                }
+                @ini_set('zlib.output_compression', 'Off');
+
+                if (ob_get_length() !== false) {
+                    ob_clean();
+                }
+
                 header('Content-Type: application/sql');
                 header('Content-Disposition: attachment; filename="' . $filename . '.sql"');
                 header('Content-Length: ' . filesize($dumpFile));
-                readfile($dumpFile);
+                header('Content-Transfer-Encoding: binary');
+                header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                header('Pragma: public');
+                header('Expires: 0');
+
+                // Flush headers
+                if (ob_get_length() !== false) {
+                    ob_end_flush();
+                }
+                flush();
+
+                // Enviar arquivo
+                $handle = fopen($dumpFile, 'rb');
+                if ($handle) {
+                    while (!feof($handle)) {
+                        echo fread($handle, 8192);
+                        flush();
+                    }
+                    fclose($handle);
+                }
+
                 unlink($dumpFile);
                 exit;
             } else {
@@ -59,8 +234,29 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
             }
         }
     } catch (Exception $e) {
-        $error = 'Erro ao fazer download do backup: ' . $e->getMessage();
+        // Em caso de erro no download, redirecionar para mostrar mensagem
+        session_start();
+        $_SESSION['download_error'] = $e->getMessage();
+        header('Location: database.php');
+        exit;
     }
+}
+
+// Inicialização normal (quando não é download)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/../includes/auth.php';
+requireAdmin();
+
+$db = Database::getInstance();
+$success = '';
+$error = '';
+
+// Verificar se há erro de download da sessão
+if (isset($_SESSION['download_error'])) {
+    $error = 'Erro ao fazer download do backup: ' . $_SESSION['download_error'];
+    unset($_SESSION['download_error']);
 }
 
 // Processar upload/restore do backup
@@ -81,18 +277,100 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 throw new Exception('O arquivo deve ter extensão .db para SQLite');
             }
 
+            // Criar arquivo temporário para validação
+            $tempFile = sys_get_temp_dir() . '/restore_temp_' . uniqid() . '.db';
+            if (!move_uploaded_file($file['tmp_name'], $tempFile)) {
+                throw new Exception('Erro ao processar arquivo de upload');
+            }
+
+            // Validar se o arquivo é um banco SQLite válido
+            try {
+                // Verificar se o arquivo tem conteúdo
+                $fileSize = filesize($tempFile);
+                if ($fileSize === 0) {
+                    unlink($tempFile);
+                    throw new Exception('O arquivo está vazio (0 bytes)');
+                }
+
+                // Verificar a assinatura do arquivo SQLite (primeiros 16 bytes devem ser "SQLite format 3\000")
+                $handle = fopen($tempFile, 'rb');
+                $header = fread($handle, 16);
+                fclose($handle);
+
+                if (substr($header, 0, 13) !== 'SQLite format') {
+                    unlink($tempFile);
+                    throw new Exception('O arquivo não é um banco SQLite válido (assinatura incorreta). Tamanho: ' . number_format($fileSize) . ' bytes. Verifique se o download foi feito corretamente.');
+                }
+
+                // Tentar abrir o banco
+                $testPdo = new PDO('sqlite:' . $tempFile);
+                $testPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+                // Testar integridade do banco
+                $result = $testPdo->query("PRAGMA integrity_check")->fetch();
+                if ($result[0] !== 'ok') {
+                    throw new Exception('Arquivo de backup está corrompido (falha na verificação de integridade)');
+                }
+
+                // Verificar se tem as tabelas principais
+                $tables = $testPdo->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(PDO::FETCH_COLUMN);
+                if (empty($tables)) {
+                    throw new Exception('Arquivo de backup não contém tabelas');
+                }
+
+                $testPdo = null; // Fechar conexão de teste
+            } catch (PDOException $e) {
+                unlink($tempFile);
+                throw new Exception('Arquivo não é um banco SQLite válido: ' . $e->getMessage());
+            }
+
             $dbPath = DB_PATH;
             $backupPath = $dbPath . '.backup_' . date('Y-m-d_H-i-s');
 
-            // Fazer backup do arquivo atual
+            // Fechar todas as conexões PDO ativas antes de substituir o arquivo
+            $pdo = $db->getConnection();
+            $pdo = null;
+
+            // Fazer backup do arquivo atual usando VACUUM INTO (mais seguro)
             if (file_exists($dbPath)) {
-                copy($dbPath, $backupPath);
+                try {
+                    // Tentar criar backup com VACUUM
+                    $backupPdo = new PDO('sqlite:' . $dbPath);
+                    $backupPdo->exec("VACUUM INTO " . $backupPdo->quote($backupPath));
+                    $backupPdo = null;
+                } catch (Exception $e) {
+                    // Se falhar, usar cópia simples
+                    if (!copy($dbPath, $backupPath)) {
+                        unlink($tempFile);
+                        throw new Exception('Erro ao criar backup do arquivo atual');
+                    }
+                }
             }
 
-            // Substituir com o arquivo enviado
-            if (move_uploaded_file($file['tmp_name'], $dbPath)) {
+            // Substituir com o arquivo validado
+            if (copy($tempFile, $dbPath)) {
+                unlink($tempFile);
+
+                // Verificar integridade do arquivo restaurado
+                try {
+                    $verifyPdo = new PDO('sqlite:' . $dbPath);
+                    $result = $verifyPdo->query("PRAGMA integrity_check")->fetch();
+                    $verifyPdo = null;
+
+                    if ($result[0] !== 'ok') {
+                        // Restaurar backup anterior
+                        copy($backupPath, $dbPath);
+                        throw new Exception('Falha na verificação de integridade após restauração');
+                    }
+                } catch (Exception $e) {
+                    // Restaurar backup anterior
+                    copy($backupPath, $dbPath);
+                    throw new Exception('Erro ao verificar banco restaurado: ' . $e->getMessage());
+                }
+
                 $success = 'Base de dados restaurada com sucesso! Backup anterior salvo em: ' . basename($backupPath);
             } else {
+                unlink($tempFile);
                 throw new Exception('Erro ao mover arquivo de backup');
             }
         } else {
