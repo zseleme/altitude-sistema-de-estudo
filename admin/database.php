@@ -17,14 +17,50 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
         $filename = 'backup_' . date('Y-m-d_H-i-s');
 
         if ($dbType === 'sqlite') {
-            // Para SQLite, copiar o arquivo .db
+            // Para SQLite, usar VACUUM INTO para criar backup seguro
             $dbPath = DB_PATH;
             if (file_exists($dbPath)) {
-                header('Content-Type: application/octet-stream');
-                header('Content-Disposition: attachment; filename="' . $filename . '.db"');
-                header('Content-Length: ' . filesize($dbPath));
-                readfile($dbPath);
-                exit;
+                // Criar arquivo temporário para o backup
+                $tempBackup = sys_get_temp_dir() . '/' . $filename . '.db';
+
+                try {
+                    // Usar VACUUM INTO para criar backup consistente
+                    // Este método é mais seguro pois garante que o backup seja uma cópia consistente
+                    $pdo = $db->getConnection();
+                    $pdo->exec("VACUUM INTO " . $pdo->quote($tempBackup));
+
+                    // Verificar se o arquivo foi criado e tem tamanho válido
+                    if (file_exists($tempBackup) && filesize($tempBackup) > 0) {
+                        header('Content-Type: application/octet-stream');
+                        header('Content-Disposition: attachment; filename="' . $filename . '.db"');
+                        header('Content-Length: ' . filesize($tempBackup));
+                        readfile($tempBackup);
+
+                        // Limpar arquivo temporário
+                        unlink($tempBackup);
+                        exit;
+                    } else {
+                        throw new Exception('Falha ao criar arquivo de backup');
+                    }
+                } catch (Exception $e) {
+                    // Se VACUUM INTO falhar (SQLite antigo), usar método alternativo
+                    // Fechar todas as conexões, copiar o arquivo, e reabrir
+                    $pdo = null;
+
+                    // Criar cópia do arquivo
+                    if (copy($dbPath, $tempBackup)) {
+                        header('Content-Type: application/octet-stream');
+                        header('Content-Disposition: attachment; filename="' . $filename . '.db"');
+                        header('Content-Length: ' . filesize($tempBackup));
+                        readfile($tempBackup);
+
+                        // Limpar arquivo temporário
+                        unlink($tempBackup);
+                        exit;
+                    } else {
+                        throw new Exception('Erro ao criar backup: ' . $e->getMessage());
+                    }
+                }
             } else {
                 $error = 'Arquivo de banco de dados não encontrado';
             }
