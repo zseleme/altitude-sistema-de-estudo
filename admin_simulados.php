@@ -134,7 +134,10 @@ $content = '
 
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
                     <div class="flex justify-between items-center">
-                        <p class="text-blue-900 text-sm"><strong>Como usar:</strong> Cole as questões no formato JSON abaixo</p>
+                        <div>
+                            <p class="text-blue-900 text-sm"><strong>Como usar:</strong> Cole as questões no formato JSON abaixo</p>
+                            <p class="text-blue-700 text-xs mt-1">Questões podem ter de 2 a 5 alternativas. Campos obrigatórios: enunciado, alternativa_a, alternativa_b e resposta_correta</p>
+                        </div>
                         <button onclick="mostrarExemploJSON()" class="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700">Ver Exemplo</button>
                     </div>
                 </div>
@@ -151,7 +154,34 @@ $content = '
     "resposta_correta": "C",
     "explicacao": "Brasília é a capital desde 1960.",
     "nivel_dificuldade": "facil",
-    "tags": "geografia, brasil"
+    "tags": "geografia, brasil",
+    "texto_apoio": ""
+  },
+  {
+    "enunciado": "2 + 2 é igual a:",
+    "alternativa_a": "3",
+    "alternativa_b": "4",
+    "alternativa_c": "",
+    "alternativa_d": "",
+    "alternativa_e": "",
+    "resposta_correta": "B",
+    "explicacao": "Questão com apenas 2 alternativas.",
+    "nivel_dificuldade": "facil",
+    "tags": "matematica",
+    "texto_apoio": ""
+  },
+  {
+    "enunciado": "Com base no texto, qual é a capital da França?",
+    "alternativa_a": "Londres",
+    "alternativa_b": "Paris",
+    "alternativa_c": "Roma",
+    "alternativa_d": "",
+    "alternativa_e": "",
+    "resposta_correta": "B",
+    "explicacao": "Paris é a capital da França.",
+    "nivel_dificuldade": "facil",
+    "tags": "geografia",
+    "texto_apoio": "A França é um país localizado na Europa Ocidental. Sua capital, Paris, é conhecida mundialmente pela Torre Eiffel, pelo Museu do Louvre e por sua rica história cultural."
   }
 ]</code></pre>
                 </div>
@@ -300,13 +330,29 @@ function validarJSON() {
         }
 
         questoes.forEach((q, index) => {
-            const campos = [\'enunciado\', \'alternativa_a\', \'alternativa_b\', \'alternativa_c\', \'alternativa_d\', \'resposta_correta\'];
-            campos.forEach(campo => {
-                if (!q[campo]) throw new Error(`Questão ${index + 1}: campo "${campo}" obrigatório`);
-            });
+            // Campos obrigatórios: enunciado e pelo menos 2 alternativas (A e B)
+            if (!q.enunciado) throw new Error(`Questão ${index + 1}: campo "enunciado" obrigatório`);
+            if (!q.alternativa_a) throw new Error(`Questão ${index + 1}: campo "alternativa_a" obrigatório`);
+            if (!q.alternativa_b) throw new Error(`Questão ${index + 1}: campo "alternativa_b" obrigatório`);
+            if (!q.resposta_correta) throw new Error(`Questão ${index + 1}: campo "resposta_correta" obrigatório`);
 
-            if (![\'A\', \'B\', \'C\', \'D\', \'E\'].includes(q.resposta_correta.toUpperCase())) {
+            // Validar resposta_correta
+            const respostaUpper = q.resposta_correta.toUpperCase();
+            if (![\'A\', \'B\', \'C\', \'D\', \'E\'].includes(respostaUpper)) {
                 throw new Error(`Questão ${index + 1}: resposta_correta deve ser A, B, C, D ou E`);
+            }
+
+            // Verificar se a alternativa marcada como correta existe
+            const alternativaMap = {
+                \'A\': q.alternativa_a,
+                \'B\': q.alternativa_b,
+                \'C\': q.alternativa_c,
+                \'D\': q.alternativa_d,
+                \'E\': q.alternativa_e
+            };
+
+            if (!alternativaMap[respostaUpper]) {
+                throw new Error(`Questão ${index + 1}: resposta_correta é "${respostaUpper}", mas alternativa_${respostaUpper.toLowerCase()} está vazia`);
             }
         });
 
