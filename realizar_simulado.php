@@ -1,8 +1,4 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -121,32 +117,6 @@ $content = '
                     <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" id="progressBar" style="width: 0%"></div>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Texto de Apoio -->
-<div id="modalTextoApoio" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full transform transition-all" style="max-height: 90vh; overflow-y: auto;">
-        <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white p-6 rounded-t-2xl flex items-center justify-between" style="position: sticky; top: 0;">
-            <h3 class="text-xl font-bold flex items-center">
-                <i class="fas fa-book-open mr-3"></i>
-                Texto de Apoio
-            </h3>
-            <button onclick="fecharModalTextoApoio()" class="text-white hover:text-gray-200 transition-colors">
-                <i class="fas fa-times text-2xl"></i>
-            </button>
-        </div>
-        <div class="p-6">
-            <div id="conteudoTextoApoio" class="text-gray-800 leading-relaxed whitespace-pre-wrap text-base">
-                <!-- Preenchido via JavaScript -->
-            </div>
-        </div>
-        <div class="p-6 border-t border-gray-200 flex justify-end bg-gray-50" style="position: sticky; bottom: 0;">
-            <button onclick="fecharModalTextoApoio()"
-                class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
-                Fechar
-            </button>
         </div>
     </div>
 </div>
@@ -339,16 +309,7 @@ function carregarQuestao(index) {
     // Montar questão
     const html = `
         <div class="mb-6">
-            <div class="flex items-start justify-between mb-3">
-                <h3 class="text-lg font-bold text-gray-700">Questão ${questao.numero_questao}</h3>
-                ${questao.texto_apoio ? `
-                    <button onclick="abrirModalTextoApoio()"
-                        class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors inline-flex items-center">
-                        <i class="fas fa-book-open mr-2"></i>
-                        Texto de Apoio
-                    </button>
-                ` : ''}
-            </div>
+            <h3 class="text-lg font-bold text-gray-700 mb-3">Questão ${questao.numero_questao}</h3>
             <p class="text-gray-900 text-base leading-relaxed">${questao.enunciado}</p>
         </div>
 
@@ -673,16 +634,6 @@ function mostrarModalTempoEsgotado() {
 function fecharModalTempoEsgotado() {
     document.getElementById(\'modalTempoEsgotado\').classList.add(\'hidden\');
     confirmarFinalizacao();
-}
-
-function abrirModalTextoApoio() {
-    const questao = questoes[questaoAtualIndex];
-    document.getElementById(\'conteudoTextoApoio\').textContent = questao.texto_apoio || \'Sem texto de apoio disponível.\';
-    document.getElementById(\'modalTextoApoio\').classList.remove(\'hidden\');
-}
-
-function fecharModalTextoApoio() {
-    document.getElementById(\'modalTextoApoio\').classList.add(\'hidden\');
 }
 
 window.addEventListener(\'beforeunload\', function(e) {
