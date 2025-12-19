@@ -79,7 +79,10 @@ $content = '
             <div class="p-6">
                 <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
                     <div class="flex justify-between items-center">
-                        <p class="text-blue-900 text-sm"><strong>Como usar:</strong> Cole as questões no formato JSON abaixo</p>
+                        <div>
+                            <p class="text-blue-900 text-sm"><strong>Como usar:</strong> Cole as questões no formato JSON abaixo</p>
+                            <p class="text-blue-700 text-xs mt-1">Questões podem ter de 2 a 5 alternativas. Campos obrigatórios: enunciado, alternativa_a, alternativa_b e resposta_correta</p>
+                        </div>
                         <button onclick="mostrarExemploJSON()" class="px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700">Ver Exemplo</button>
                     </div>
                 </div>
@@ -96,7 +99,17 @@ $content = '
     "resposta_correta": "C",
     "explicacao": "Brasília é a capital desde 1960.",
     "nivel_dificuldade": "facil",
-    "tags": "geografia, brasil"
+    "tags": "geografia, brasil",
+    "texto_apoio": ""
+  },
+  {
+    "enunciado": "2 + 2 é igual a:",
+    "alternativa_a": "3",
+    "alternativa_b": "4",
+    "resposta_correta": "B",
+    "explicacao": "Questão com apenas 2 alternativas.",
+    "nivel_dificuldade": "facil",
+    "tags": "matematica"
   }
 ]</code></pre>
                 </div>
@@ -153,12 +166,12 @@ $content = '
                         <input type="text" id="edit_alternativa_b" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Alternativa C *</label>
-                        <input type="text" id="edit_alternativa_c" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Alternativa C</label>
+                        <input type="text" id="edit_alternativa_c" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Alternativa D *</label>
-                        <input type="text" id="edit_alternativa_d" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Alternativa D</label>
+                        <input type="text" id="edit_alternativa_d" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Alternativa E</label>
@@ -179,6 +192,11 @@ $content = '
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Explicação</label>
                     <textarea id="edit_explicacao" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Texto de Apoio</label>
+                    <textarea id="edit_texto_apoio" rows="3" placeholder="Texto adicional para ajudar o aluno a responder a questão" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -248,8 +266,8 @@ async function carregarQuestoes() {
                         <div class="space-y-1 text-sm">
                             <p class="text-gray-700"><strong>A)</strong> ${q.alternativa_a}</p>
                             <p class="text-gray-700"><strong>B)</strong> ${q.alternativa_b}</p>
-                            <p class="text-gray-700"><strong>C)</strong> ${q.alternativa_c}</p>
-                            <p class="text-gray-700"><strong>D)</strong> ${q.alternativa_d}</p>
+                            ${q.alternativa_c ? `<p class="text-gray-700"><strong>C)</strong> ${q.alternativa_c}</p>` : \'\'}
+                            ${q.alternativa_d ? `<p class="text-gray-700"><strong>D)</strong> ${q.alternativa_d}</p>` : \'\'}
                             ${q.alternativa_e ? `<p class="text-gray-700"><strong>E)</strong> ${q.alternativa_e}</p>` : \'\'}
                         </div>
                         <div class="mt-3 pt-3 border-t border-gray-200">
@@ -300,13 +318,42 @@ function validarJSON() {
         }
 
         questoes.forEach((q, index) => {
-            const campos = [\'enunciado\', \'alternativa_a\', \'alternativa_b\', \'alternativa_c\', \'alternativa_d\', \'resposta_correta\'];
-            campos.forEach(campo => {
-                if (!q[campo]) throw new Error(`Questão ${index + 1}: campo "${campo}" obrigatório`);
-            });
+            // Função auxiliar para verificar se um campo está preenchido
+            const isPreenchido = (valor) => {
+                return valor !== undefined && valor !== null && String(valor).trim() !== \'\';
+            };
 
-            if (![\'A\', \'B\', \'C\', \'D\', \'E\'].includes(q.resposta_correta.toUpperCase())) {
+            // Campos obrigatórios: enunciado, alternativa_a, alternativa_b e resposta_correta
+            if (!isPreenchido(q.enunciado)) {
+                throw new Error(`Questão ${index + 1}: campo "enunciado" obrigatório`);
+            }
+            if (!isPreenchido(q.alternativa_a)) {
+                throw new Error(`Questão ${index + 1}: campo "alternativa_a" obrigatório`);
+            }
+            if (!isPreenchido(q.alternativa_b)) {
+                throw new Error(`Questão ${index + 1}: campo "alternativa_b" obrigatório`);
+            }
+            if (!isPreenchido(q.resposta_correta)) {
+                throw new Error(`Questão ${index + 1}: campo "resposta_correta" obrigatório`);
+            }
+
+            // Validar resposta_correta
+            const respostaUpper = String(q.resposta_correta).toUpperCase().trim();
+            if (![\'A\', \'B\', \'C\', \'D\', \'E\'].includes(respostaUpper)) {
                 throw new Error(`Questão ${index + 1}: resposta_correta deve ser A, B, C, D ou E`);
+            }
+
+            // Verificar se a alternativa marcada como correta existe e não está vazia
+            const alternativaMap = {
+                \'A\': q.alternativa_a,
+                \'B\': q.alternativa_b,
+                \'C\': q.alternativa_c,
+                \'D\': q.alternativa_d,
+                \'E\': q.alternativa_e
+            };
+
+            if (!isPreenchido(alternativaMap[respostaUpper])) {
+                throw new Error(`Questão ${index + 1}: a resposta correta é "${respostaUpper}", mas a alternativa ${respostaUpper} está vazia ou não foi fornecida`);
             }
         });
 
@@ -363,11 +410,12 @@ async function editarQuestao(id) {
         document.getElementById(\'edit_enunciado\').value = questao.enunciado;
         document.getElementById(\'edit_alternativa_a\').value = questao.alternativa_a;
         document.getElementById(\'edit_alternativa_b\').value = questao.alternativa_b;
-        document.getElementById(\'edit_alternativa_c\').value = questao.alternativa_c;
-        document.getElementById(\'edit_alternativa_d\').value = questao.alternativa_d;
+        document.getElementById(\'edit_alternativa_c\').value = questao.alternativa_c || \'\';
+        document.getElementById(\'edit_alternativa_d\').value = questao.alternativa_d || \'\';
         document.getElementById(\'edit_alternativa_e\').value = questao.alternativa_e || \'\';
         document.getElementById(\'edit_resposta_correta\').value = questao.resposta_correta;
         document.getElementById(\'edit_explicacao\').value = questao.explicacao || \'\';
+        document.getElementById(\'edit_texto_apoio\').value = questao.texto_apoio || \'\';
         document.getElementById(\'edit_nivel_dificuldade\').value = questao.nivel_dificuldade || \'facil\';
         document.getElementById(\'edit_tags\').value = questao.tags || \'\';
 
@@ -393,6 +441,7 @@ async function salvarEdicaoQuestao() {
         alternativa_e: document.getElementById(\'edit_alternativa_e\').value,
         resposta_correta: document.getElementById(\'edit_resposta_correta\').value,
         explicacao: document.getElementById(\'edit_explicacao\').value,
+        texto_apoio: document.getElementById(\'edit_texto_apoio\').value,
         nivel_dificuldade: document.getElementById(\'edit_nivel_dificuldade\').value,
         tags: document.getElementById(\'edit_tags\').value
     };
