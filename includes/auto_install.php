@@ -424,6 +424,13 @@ function runMigrations() {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
         ]);
 
+        // Verificar se a tabela simulado_questoes existe
+        $tableCheck = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='simulado_questoes'");
+        if (!$tableCheck->fetch()) {
+            // Tabela não existe, não precisa migrar
+            return;
+        }
+
         // Verificar se a coluna texto_apoio existe na tabela simulado_questoes
         $query = $pdo->query("PRAGMA table_info(simulado_questoes)");
         $columns = $query->fetchAll(PDO::FETCH_ASSOC);
