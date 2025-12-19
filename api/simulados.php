@@ -80,7 +80,7 @@ try {
 
             // Buscar questões
             $query = "SELECT id, numero_questao, enunciado, alternativa_a, alternativa_b,
-                      alternativa_c, alternativa_d, alternativa_e, nivel_dificuldade
+                      alternativa_c, alternativa_d, alternativa_e, texto_apoio, nivel_dificuldade
                       FROM simulado_questoes
                       WHERE simulado_id = :id
                       ORDER BY numero_questao";

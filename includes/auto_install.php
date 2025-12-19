@@ -211,6 +211,7 @@ function createTables($pdo) {
             alternativa_e TEXT,
             resposta_correta TEXT NOT NULL,
             explicacao TEXT,
+            texto_apoio TEXT,
             nivel_dificuldade TEXT DEFAULT 'medio',
             tags TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -409,6 +410,53 @@ function insertInitialData($pdo) {
     }
 }
 
+function runMigrations() {
+    try {
+        $dbFile = __DIR__ . '/../config/estudos.db';
+
+        // Se o banco não existe, não precisa migrar
+        if (!file_exists($dbFile)) {
+            return;
+        }
+
+        $pdo = new PDO("sqlite:" . $dbFile, null, null, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+        ]);
+
+        // Verificar se a tabela simulado_questoes existe
+        $tableCheck = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='simulado_questoes'");
+        if (!$tableCheck->fetch()) {
+            // Tabela não existe, não precisa migrar
+            return;
+        }
+
+        // Verificar se a coluna texto_apoio existe na tabela simulado_questoes
+        $query = $pdo->query("PRAGMA table_info(simulado_questoes)");
+        $columns = $query->fetchAll(PDO::FETCH_ASSOC);
+        $hasTextoApoio = false;
+
+        foreach ($columns as $column) {
+            if ($column['name'] === 'texto_apoio') {
+                $hasTextoApoio = true;
+                break;
+            }
+        }
+
+        // Se não existe, adicionar a coluna
+        if (!$hasTextoApoio) {
+            $pdo->exec("ALTER TABLE simulado_questoes ADD COLUMN texto_apoio TEXT");
+        }
+
+    } catch (Exception $e) {
+        // Ignorar erros de migração para não quebrar o sistema
+        error_log("Erro na migração: " . $e->getMessage());
+    }
+}
+
 // Executar auto-instalação
 autoInstallDatabase();
+
+// Executar migrações
+runMigrations();
 ?>

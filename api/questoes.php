@@ -29,10 +29,10 @@ try {
                 $query = "INSERT INTO simulado_questoes
                           (simulado_id, numero_questao, enunciado, alternativa_a, alternativa_b,
                            alternativa_c, alternativa_d, alternativa_e, resposta_correta,
-                           explicacao, nivel_dificuldade, tags)
+                           explicacao, texto_apoio, nivel_dificuldade, tags)
                           VALUES
                           (:simulado_id, :numero, :enunciado, :alt_a, :alt_b, :alt_c, :alt_d,
-                           :alt_e, :resposta, :explicacao, :nivel, :tags)";
+                           :alt_e, :resposta, :explicacao, :texto_apoio, :nivel, :tags)";
 
                 $stmt = $db->prepare($query);
 
@@ -48,6 +48,8 @@ try {
                     $stmt->bindParam(':alt_e', $questao['alternativa_e']);
                     $stmt->bindParam(':resposta', $questao['resposta_correta']);
                     $stmt->bindParam(':explicacao', $questao['explicacao']);
+                    $textoApoio = $questao['texto_apoio'] ?? '';
+                    $stmt->bindParam(':texto_apoio', $textoApoio);
                     $stmt->bindParam(':nivel', $questao['nivel_dificuldade']);
                     $stmt->bindParam(':tags', $questao['tags']);
                     $stmt->execute();
@@ -96,6 +98,7 @@ try {
                       alternativa_e = :alt_e,
                       resposta_correta = :resposta,
                       explicacao = :explicacao,
+                      texto_apoio = :texto_apoio,
                       nivel_dificuldade = :nivel,
                       tags = :tags
                       WHERE id = :id";
@@ -109,6 +112,8 @@ try {
             $stmt->bindParam(':alt_e', $data['alternativa_e']);
             $stmt->bindParam(':resposta', $data['resposta_correta']);
             $stmt->bindParam(':explicacao', $data['explicacao']);
+            $textoApoio = $data['texto_apoio'] ?? '';
+            $stmt->bindParam(':texto_apoio', $textoApoio);
             $stmt->bindParam(':nivel', $data['nivel_dificuldade']);
             $stmt->bindParam(':tags', $data['tags']);
             $stmt->bindParam(':id', $data['id']);
