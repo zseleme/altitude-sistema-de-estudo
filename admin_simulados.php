@@ -319,6 +319,7 @@ function mostrarExemploJSON() {
 }
 
 function validarJSON() {
+    // Versão: 2024-12-19-v2 - Suporte para 2-5 alternativas
     const textarea = document.getElementById(\'questoesJSON\');
     const status = document.getElementById(\'validacaoStatus\');
 
@@ -330,22 +331,27 @@ function validarJSON() {
         }
 
         questoes.forEach((q, index) => {
-            // Campos obrigatórios: enunciado e pelo menos 2 alternativas (A e B)
-            if (!q.enunciado || q.enunciado.trim() === \'\') {
+            // Função auxiliar para verificar se um campo está preenchido
+            const isPreenchido = (valor) => {
+                return valor !== undefined && valor !== null && String(valor).trim() !== \'\';
+            };
+
+            // Campos obrigatórios: enunciado, alternativa_a, alternativa_b e resposta_correta
+            if (!isPreenchido(q.enunciado)) {
                 throw new Error(`Questão ${index + 1}: campo "enunciado" obrigatório`);
             }
-            if (!q.alternativa_a || q.alternativa_a.trim() === \'\') {
+            if (!isPreenchido(q.alternativa_a)) {
                 throw new Error(`Questão ${index + 1}: campo "alternativa_a" obrigatório`);
             }
-            if (!q.alternativa_b || q.alternativa_b.trim() === \'\') {
+            if (!isPreenchido(q.alternativa_b)) {
                 throw new Error(`Questão ${index + 1}: campo "alternativa_b" obrigatório`);
             }
-            if (!q.resposta_correta || q.resposta_correta.trim() === \'\') {
+            if (!isPreenchido(q.resposta_correta)) {
                 throw new Error(`Questão ${index + 1}: campo "resposta_correta" obrigatório`);
             }
 
             // Validar resposta_correta
-            const respostaUpper = q.resposta_correta.toUpperCase();
+            const respostaUpper = String(q.resposta_correta).toUpperCase().trim();
             if (![\'A\', \'B\', \'C\', \'D\', \'E\'].includes(respostaUpper)) {
                 throw new Error(`Questão ${index + 1}: resposta_correta deve ser A, B, C, D ou E`);
             }
@@ -354,14 +360,13 @@ function validarJSON() {
             const alternativaMap = {
                 \'A\': q.alternativa_a,
                 \'B\': q.alternativa_b,
-                \'C\': q.alternativa_c || \'\',
-                \'D\': q.alternativa_d || \'\',
-                \'E\': q.alternativa_e || \'\'
+                \'C\': q.alternativa_c,
+                \'D\': q.alternativa_d,
+                \'E\': q.alternativa_e
             };
 
-            const valorAlternativa = alternativaMap[respostaUpper];
-            if (!valorAlternativa || valorAlternativa.trim() === \'\') {
-                throw new Error(`Questão ${index + 1}: resposta_correta é "${respostaUpper}", mas alternativa_${respostaUpper.toLowerCase()} está vazia`);
+            if (!isPreenchido(alternativaMap[respostaUpper])) {
+                throw new Error(`Questão ${index + 1}: a resposta correta é "${respostaUpper}", mas a alternativa ${respostaUpper} está vazia ou não foi fornecida`);
             }
         });
 
