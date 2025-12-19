@@ -1,4 +1,4 @@
-# Funcionalidades Futuras - Altitude LMS
+# Funcionalidades Futuras - Altitude LMS 
 
 Documento criado em: 2025-12-16
 
