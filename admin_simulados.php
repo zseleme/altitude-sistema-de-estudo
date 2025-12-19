@@ -331,10 +331,18 @@ function validarJSON() {
 
         questoes.forEach((q, index) => {
             // Campos obrigatórios: enunciado e pelo menos 2 alternativas (A e B)
-            if (!q.enunciado) throw new Error(`Questão ${index + 1}: campo "enunciado" obrigatório`);
-            if (!q.alternativa_a) throw new Error(`Questão ${index + 1}: campo "alternativa_a" obrigatório`);
-            if (!q.alternativa_b) throw new Error(`Questão ${index + 1}: campo "alternativa_b" obrigatório`);
-            if (!q.resposta_correta) throw new Error(`Questão ${index + 1}: campo "resposta_correta" obrigatório`);
+            if (!q.enunciado || q.enunciado.trim() === \'\') {
+                throw new Error(`Questão ${index + 1}: campo "enunciado" obrigatório`);
+            }
+            if (!q.alternativa_a || q.alternativa_a.trim() === \'\') {
+                throw new Error(`Questão ${index + 1}: campo "alternativa_a" obrigatório`);
+            }
+            if (!q.alternativa_b || q.alternativa_b.trim() === \'\') {
+                throw new Error(`Questão ${index + 1}: campo "alternativa_b" obrigatório`);
+            }
+            if (!q.resposta_correta || q.resposta_correta.trim() === \'\') {
+                throw new Error(`Questão ${index + 1}: campo "resposta_correta" obrigatório`);
+            }
 
             // Validar resposta_correta
             const respostaUpper = q.resposta_correta.toUpperCase();
@@ -342,16 +350,17 @@ function validarJSON() {
                 throw new Error(`Questão ${index + 1}: resposta_correta deve ser A, B, C, D ou E`);
             }
 
-            // Verificar se a alternativa marcada como correta existe
+            // Verificar se a alternativa marcada como correta existe e não está vazia
             const alternativaMap = {
                 \'A\': q.alternativa_a,
                 \'B\': q.alternativa_b,
-                \'C\': q.alternativa_c,
-                \'D\': q.alternativa_d,
-                \'E\': q.alternativa_e
+                \'C\': q.alternativa_c || \'\',
+                \'D\': q.alternativa_d || \'\',
+                \'E\': q.alternativa_e || \'\'
             };
 
-            if (!alternativaMap[respostaUpper]) {
+            const valorAlternativa = alternativaMap[respostaUpper];
+            if (!valorAlternativa || valorAlternativa.trim() === \'\') {
                 throw new Error(`Questão ${index + 1}: resposta_correta é "${respostaUpper}", mas alternativa_${respostaUpper.toLowerCase()} está vazia`);
             }
         });
