@@ -347,9 +347,9 @@ function carregarQuestao(index) {
         <div class="space-y-3">
             ${criarAlternativa(\'A\', questao.alternativa_a, index)}
             ${criarAlternativa(\'B\', questao.alternativa_b, index)}
-            ${criarAlternativa(\'C\', questao.alternativa_c, index)}
-            ${criarAlternativa(\'D\', questao.alternativa_d, index)}
-            ${questao.alternativa_e ? criarAlternativa(\'E\', questao.alternativa_e, index) : \'\'}
+            ${questao.alternativa_c && questao.alternativa_c.trim() ? criarAlternativa(\'C\', questao.alternativa_c, index) : \'\'}
+            ${questao.alternativa_d && questao.alternativa_d.trim() ? criarAlternativa(\'D\', questao.alternativa_d, index) : \'\'}
+            ${questao.alternativa_e && questao.alternativa_e.trim() ? criarAlternativa(\'E\', questao.alternativa_e, index) : \'\'}
         </div>
     `;
 
