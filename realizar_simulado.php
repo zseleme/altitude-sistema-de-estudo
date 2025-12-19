@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -123,8 +127,8 @@ $content = '
 
 <!-- Modal Texto de Apoio -->
 <div id="modalTextoApoio" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full transform transition-all max-h-[90vh] overflow-y-auto">
-        <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white p-6 rounded-t-2xl flex items-center justify-between sticky top-0">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full transform transition-all" style="max-height: 90vh; overflow-y: auto;">
+        <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white p-6 rounded-t-2xl flex items-center justify-between" style="position: sticky; top: 0;">
             <h3 class="text-xl font-bold flex items-center">
                 <i class="fas fa-book-open mr-3"></i>
                 Texto de Apoio
@@ -138,7 +142,7 @@ $content = '
                 <!-- Preenchido via JavaScript -->
             </div>
         </div>
-        <div class="p-6 border-t border-gray-200 flex justify-end bg-gray-50 sticky bottom-0">
+        <div class="p-6 border-t border-gray-200 flex justify-end bg-gray-50" style="position: sticky; bottom: 0;">
             <button onclick="fecharModalTextoApoio()"
                 class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
                 Fechar

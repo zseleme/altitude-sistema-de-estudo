@@ -457,6 +457,6 @@ function runMigrations() {
 // Executar auto-instalação
 autoInstallDatabase();
 
-// Executar migrações
-runMigrations();
+// Executar migrações (desabilitado temporariamente para debug)
+// runMigrations();
 ?>
