@@ -134,12 +134,6 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                         </a>
                     </li>
                     <li>
-                        <a href="/cursos_arquivados.php" class="flex items-center px-4 py-3 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors">
-                            <i class="fas fa-archive w-5 mr-3"></i>
-                            <span>Cursos Arquivados</span>
-                        </a>
-                    </li>
-                    <li>
                         <a href="/certificados.php" class="flex items-center px-4 py-3 text-white hover:bg-gray-700 rounded-lg transition-colors">
                             <i class="fas fa-certificate w-5 mr-3"></i>
                             <span>Certificados</span>
