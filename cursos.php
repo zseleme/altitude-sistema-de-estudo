@@ -1,4 +1,7 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -17,27 +20,44 @@ $cursosArquivados = $db->fetchOne("
 ", [$_SESSION['user_id']])['total'] ?? 0;
 
 // Buscar cursos favoritos (com flag e ordenados por data)
-$cursosFavoritos = $db->fetchAll("
-    SELECT c.*, cat.nome as categoria_nome, 1 as is_favorito
-    FROM cursos c
-    LEFT JOIN categorias cat ON c.categoria_id = cat.id
-    INNER JOIN cursos_favoritos cf ON cf.curso_id = c.id AND cf.usuario_id = ?
-    LEFT JOIN cursos_arquivados ca ON ca.curso_id = c.id AND ca.usuario_id = ?
-    WHERE c.ativo = TRUE AND ca.curso_id IS NULL
-    ORDER BY cf.data_favoritado DESC
-", [$_SESSION['user_id'], $_SESSION['user_id']]);
+try {
+    $cursosFavoritos = $db->fetchAll("
+        SELECT c.*, cat.nome as categoria_nome, 1 as is_favorito
+        FROM cursos c
+        LEFT JOIN categorias cat ON c.categoria_id = cat.id
+        INNER JOIN cursos_favoritos cf ON cf.curso_id = c.id AND cf.usuario_id = ?
+        LEFT JOIN cursos_arquivados ca ON ca.curso_id = c.id AND ca.usuario_id = ?
+        WHERE c.ativo = TRUE AND ca.curso_id IS NULL
+        ORDER BY cf.data_favoritado DESC
+    ", [$_SESSION['user_id'], $_SESSION['user_id']]);
+} catch (Exception $e) {
+    // Tabela de favoritos ainda não existe, criar array vazio
+    $cursosFavoritos = [];
+}
 
 // Buscar todos os cursos com suas categorias (excluindo arquivados) e flag de favorito
-$cursos = $db->fetchAll("
-    SELECT c.*, cat.nome as categoria_nome,
-           CASE WHEN cf.curso_id IS NOT NULL THEN 1 ELSE 0 END as is_favorito
-    FROM cursos c
-    LEFT JOIN categorias cat ON c.categoria_id = cat.id
-    LEFT JOIN cursos_arquivados ca ON ca.curso_id = c.id AND ca.usuario_id = ?
-    LEFT JOIN cursos_favoritos cf ON cf.curso_id = c.id AND cf.usuario_id = ?
-    WHERE c.ativo = TRUE AND ca.curso_id IS NULL
-    ORDER BY cat.nome, c.titulo
-", [$_SESSION['user_id'], $_SESSION['user_id']]);
+try {
+    $cursos = $db->fetchAll("
+        SELECT c.*, cat.nome as categoria_nome,
+               CASE WHEN cf.curso_id IS NOT NULL THEN 1 ELSE 0 END as is_favorito
+        FROM cursos c
+        LEFT JOIN categorias cat ON c.categoria_id = cat.id
+        LEFT JOIN cursos_arquivados ca ON ca.curso_id = c.id AND ca.usuario_id = ?
+        LEFT JOIN cursos_favoritos cf ON cf.curso_id = c.id AND cf.usuario_id = ?
+        WHERE c.ativo = TRUE AND ca.curso_id IS NULL
+        ORDER BY cat.nome, c.titulo
+    ", [$_SESSION['user_id'], $_SESSION['user_id']]);
+} catch (Exception $e) {
+    // Se falhar (tabela não existe), buscar sem o LEFT JOIN de favoritos
+    $cursos = $db->fetchAll("
+        SELECT c.*, cat.nome as categoria_nome, 0 as is_favorito
+        FROM cursos c
+        LEFT JOIN categorias cat ON c.categoria_id = cat.id
+        LEFT JOIN cursos_arquivados ca ON ca.curso_id = c.id AND ca.usuario_id = ?
+        WHERE c.ativo = TRUE AND ca.curso_id IS NULL
+        ORDER BY cat.nome, c.titulo
+    ", [$_SESSION['user_id']]);
+}
 
 // Processar favoritos com progresso
 $cursosFavoritosComProgresso = [];
