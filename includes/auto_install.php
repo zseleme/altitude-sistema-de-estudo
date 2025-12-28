@@ -353,6 +353,18 @@ function createTables($pdo) {
             FOREIGN KEY (curso_id) REFERENCES cursos(id) ON DELETE CASCADE
         )
     ");
+
+    // Tabela de cursos favoritos por usuário
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS cursos_favoritos (
+            usuario_id INTEGER NOT NULL,
+            curso_id INTEGER NOT NULL,
+            data_favoritado DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (usuario_id, curso_id),
+            FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+            FOREIGN KEY (curso_id) REFERENCES cursos(id) ON DELETE CASCADE
+        )
+    ");
 }
 
 function insertInitialData($pdo) {
