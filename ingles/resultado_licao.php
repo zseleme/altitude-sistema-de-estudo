@@ -16,7 +16,7 @@ if (!$tentativaId) {
 
 require_once __DIR__ . '/../includes/layout.php';
 
-renderLayout('Resultado da Lição', function() use ($tentativaId, $userId) {
+$content = function() use ($tentativaId, $userId) {
     ?>
 
     <div class="max-w-6xl mx-auto">
@@ -475,5 +475,7 @@ renderLayout('Resultado da Lição', function() use ($tentativaId, $userId) {
     </script>
 
     <?php
-});
+};
+
+renderLayout('Resultado da Lição', $content, true, true);
 ?>

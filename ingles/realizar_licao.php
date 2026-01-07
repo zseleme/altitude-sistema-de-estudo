@@ -16,7 +16,7 @@ if (!$licaoId) {
 
 require_once __DIR__ . '/../includes/layout.php';
 
-renderLayout('Realizar Lição', function() use ($licaoId, $userId) {
+$content = function() use ($licaoId, $userId) {
     ?>
 
     <div class="max-w-6xl mx-auto">
@@ -628,5 +628,7 @@ renderLayout('Realizar Lição', function() use ($licaoId, $userId) {
     </script>
 
     <?php
-});
+};
+
+renderLayout('Realizar Lição', $content, true, true);
 ?>

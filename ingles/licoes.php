@@ -14,7 +14,7 @@ $aiEnabled = AIHelper::isConfigured();
 
 require_once __DIR__ . '/../includes/layout.php';
 
-renderLayout('Lições de Inglês', function() use ($db, $userId, $aiEnabled) {
+$content = function() use ($db, $userId, $aiEnabled) {
     ?>
 
     <!-- Breadcrumb -->
@@ -401,5 +401,7 @@ renderLayout('Lições de Inglês', function() use ($db, $userId, $aiEnabled) {
     </script>
 
     <?php
-});
+};
+
+renderLayout('Lições de Inglês', $content, true, true);
 ?>
