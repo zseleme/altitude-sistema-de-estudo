@@ -372,7 +372,9 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
 
         // Handle both string and callable content
         if (is_callable($content)) {
+            ob_start();
             $content(); // Call the function to render output
+            echo ob_get_clean(); // Capture and echo the output
         } else {
             echo $content; // Echo string content directly
         }
@@ -1035,7 +1037,13 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
     </script>';
     } else {
         // Layout para páginas não logadas
-        echo $content;
+        if (is_callable($content)) {
+            ob_start();
+            $content();
+            echo ob_get_clean();
+        } else {
+            echo $content;
+        }
     }
 
     echo '</body>
