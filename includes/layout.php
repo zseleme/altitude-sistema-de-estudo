@@ -368,9 +368,16 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
         <main class="flex-1 p-8">';
         }
         
-        echo '            <div class="max-w-7xl mx-auto">
-                ' . $content . '
-            </div>
+        echo '            <div class="max-w-7xl mx-auto">';
+
+        // Handle both string and callable content
+        if (is_callable($content)) {
+            $content(); // Call the function to render output
+        } else {
+            echo $content; // Echo string content directly
+        }
+
+        echo '            </div>
         </main>
     </div>
 
