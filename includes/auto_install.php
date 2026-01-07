@@ -297,6 +297,97 @@ function createTables($pdo) {
         )
     ");
 
+    // Tabelas de lições de inglês geradas por IA
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS ingles_licoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL,
+            tema TEXT NOT NULL,
+            titulo TEXT NOT NULL,
+            descricao TEXT,
+            nivel TEXT CHECK (nivel IN ('basico', 'intermediario', 'avancado')) DEFAULT 'intermediario',
+            conteudo_apoio TEXT,
+            numero_questoes INTEGER DEFAULT 9,
+            ativo INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+        )
+    ");
+
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_licoes_usuario ON ingles_licoes(usuario_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_licoes_ativo ON ingles_licoes(ativo)");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS ingles_licao_questoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            licao_id INTEGER NOT NULL,
+            numero_questao INTEGER NOT NULL,
+            tipo_questao TEXT NOT NULL CHECK (tipo_questao IN ('multipla_escolha', 'escrita', 'preencher_lacuna')),
+            enunciado TEXT NOT NULL,
+            contexto TEXT,
+            alternativa_a TEXT,
+            alternativa_b TEXT,
+            alternativa_c TEXT,
+            alternativa_d TEXT,
+            resposta_correta_multipla TEXT,
+            texto_com_lacuna TEXT,
+            resposta_correta_lacuna TEXT,
+            respostas_aceitas TEXT,
+            prompt_escrita TEXT,
+            criterios_avaliacao TEXT,
+            explicacao TEXT,
+            dicas TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (licao_id) REFERENCES ingles_licoes(id) ON DELETE CASCADE
+        )
+    ");
+
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_licao_questoes_licao ON ingles_licao_questoes(licao_id)");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS ingles_licao_tentativas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL,
+            licao_id INTEGER NOT NULL,
+            data_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            data_fim TIMESTAMP,
+            nota REAL,
+            questoes_corretas INTEGER DEFAULT 0,
+            questoes_totais INTEGER DEFAULT 9,
+            finalizado INTEGER DEFAULT 0,
+            feedback_geral TEXT,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+            FOREIGN KEY (licao_id) REFERENCES ingles_licoes(id) ON DELETE CASCADE
+        )
+    ");
+
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_licao_tentativas_usuario ON ingles_licao_tentativas(usuario_id)");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS ingles_licao_respostas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL,
+            licao_id INTEGER NOT NULL,
+            questao_id INTEGER NOT NULL,
+            tentativa_id INTEGER NOT NULL,
+            tipo_questao TEXT NOT NULL,
+            resposta_multipla TEXT,
+            resposta_lacuna TEXT,
+            resposta_escrita TEXT,
+            correta INTEGER NOT NULL,
+            pontuacao REAL,
+            analise_ia TEXT,
+            tempo_resposta INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+            FOREIGN KEY (licao_id) REFERENCES ingles_licoes(id) ON DELETE CASCADE,
+            FOREIGN KEY (questao_id) REFERENCES ingles_licao_questoes(id) ON DELETE CASCADE,
+            FOREIGN KEY (tentativa_id) REFERENCES ingles_licao_tentativas(id) ON DELETE CASCADE
+        )
+    ");
+
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_licao_respostas_tentativa ON ingles_licao_respostas(tentativa_id)");
+
     // Tabela de certificados
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS certificados (

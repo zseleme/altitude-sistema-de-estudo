@@ -153,6 +153,12 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                     <h3 class="px-4 text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">🇺🇸 Inglês</h3>
                     <ul class="space-y-2">
                         <li>
+                            <a href="/ingles/licoes.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
+                                <i class="fas fa-graduation-cap w-5 mr-3"></i>
+                                <span>Lições de Inglês</span>
+                            </a>
+                        </li>
+                        <li>
                             <a href="/ingles/anotacoes.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
                                 <i class="fas fa-sticky-note w-5 mr-3"></i>
                                 <span>Anotações</span>
