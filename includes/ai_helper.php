@@ -147,6 +147,147 @@ Be encouraging and constructive - remember, mistakes are part of learning!";
     }
 
     /**
+     * Gera uma lição completa de inglês com múltiplos tipos de questões
+     */
+    public function generateEnglishLesson($tema, $nivel = 'intermediario') {
+        $systemPrompt = "You are an experienced English teacher creating personalized, engaging lessons for Brazilian students learning English. Generate complete lessons with varied question types to test different language skills.";
+
+        $nivelDesc = [
+            'basico' => 'Basic/Beginner (A1-A2)',
+            'intermediario' => 'Intermediate (B1-B2)',
+            'avancado' => 'Advanced (C1-C2)'
+        ];
+
+        $userPrompt = "Create a complete English lesson in JSON format with the following specifications:
+
+Theme: {$tema}
+Level: {$nivelDesc[$nivel]}
+
+Generate a lesson with exactly 9 questions:
+- 3 multiple choice questions (tipo_questao: 'multipla_escolha')
+- 3 fill-in-the-blank questions (tipo_questao: 'preencher_lacuna')
+- 2 writing questions (tipo_questao: 'escrita')
+
+Return ONLY valid JSON in this exact structure (no markdown, no code blocks):
+{
+  \"titulo\": \"Engaging lesson title\",
+  \"descricao\": \"Brief 2-3 sentence description\",
+  \"conteudo_apoio\": \"Educational content explaining the topic with examples (200-300 words)\",
+  \"questoes\": [
+    {
+      \"numero_questao\": 1,
+      \"tipo_questao\": \"multipla_escolha\",
+      \"enunciado\": \"Clear question instructions\",
+      \"contexto\": \"Additional context if needed\",
+      \"alternativa_a\": \"Option A\",
+      \"alternativa_b\": \"Option B\",
+      \"alternativa_c\": \"Option C\",
+      \"alternativa_d\": \"Option D\",
+      \"resposta_correta_multipla\": \"A\",
+      \"explicacao\": \"Why this answer is correct\"
+    },
+    {
+      \"numero_questao\": 4,
+      \"tipo_questao\": \"preencher_lacuna\",
+      \"enunciado\": \"Complete the sentence\",
+      \"texto_com_lacuna\": \"She ____ to school every day\",
+      \"resposta_correta_lacuna\": \"goes\",
+      \"respostas_aceitas\": [\"goes\", \"walks\"],
+      \"explicacao\": \"Grammar explanation\"
+    },
+    {
+      \"numero_questao\": 7,
+      \"tipo_questao\": \"escrita\",
+      \"enunciado\": \"Write a short text\",
+      \"prompt_escrita\": \"Describe your daily routine in 50-80 words\",
+      \"criterios_avaliacao\": [\"Grammar accuracy\", \"Vocabulary range\", \"Coherence\"],
+      \"dicas\": \"Use time expressions like 'first', 'then', 'finally'\"
+    }
+  ]
+}
+
+Requirements:
+- Use real-world, practical examples
+- Ensure progressive difficulty within question types
+- Include variety in grammar points and vocabulary
+- Make writing prompts specific and achievable
+- Provide comprehensive accepted answers for fill-in-blank
+- All content must be appropriate for the specified level";
+
+        // Temporariamente aumentar o limite de tokens para geração de lição
+        $originalMaxTokens = $this->maxTokens;
+        $this->maxTokens = 8000;
+
+        try {
+            $result = $this->generateContent($systemPrompt, $userPrompt);
+            return $result;
+        } finally {
+            // Restaurar o valor original
+            $this->maxTokens = $originalMaxTokens;
+        }
+    }
+
+    /**
+     * Avalia um texto escrito pelo aluno com base em critérios específicos
+     */
+    public function evaluateWriting($prompt, $criterios, $respostaAluno) {
+        $systemPrompt = "You are an expert English teacher evaluating student writing. Be encouraging but provide specific, actionable feedback to help students improve. Your evaluation should be fair, constructive, and supportive.";
+
+        $criteriosFormatados = is_array($criterios) ? implode(', ', $criterios) : $criterios;
+
+        $userPrompt = "Evaluate the following student's English writing:
+
+WRITING PROMPT:
+{$prompt}
+
+STUDENT'S RESPONSE:
+{$respostaAluno}
+
+EVALUATION CRITERIA:
+{$criteriosFormatados}
+
+Provide your evaluation in JSON format (no markdown, no code blocks):
+{
+  \"pontuacao\": 85,
+  \"feedback\": \"Detailed feedback in Portuguese explaining the evaluation (150-250 words)\",
+  \"pontos_fortes\": [\"Specific strength 1\", \"Specific strength 2\"],
+  \"pontos_melhorar\": [\"Specific area to improve 1\", \"Specific area to improve 2\"],
+  \"sugestoes\": [\"Actionable suggestion 1\", \"Actionable suggestion 2\"]
+}
+
+Score from 0-100 based on:
+- Grammar accuracy (30%)
+- Vocabulary appropriateness (25%)
+- Coherence and organization (25%)
+- Task completion (20%)
+
+All feedback must be in Portuguese (BR) for student understanding.";
+
+        switch ($this->provider) {
+            case 'openai':
+                return $this->sendOpenAIRequest($systemPrompt, $userPrompt);
+            case 'gemini':
+                return $this->sendGeminiRequest($systemPrompt, $userPrompt);
+            case 'groq':
+                return $this->sendGroqRequest($systemPrompt, $userPrompt);
+        }
+    }
+
+    /**
+     * Método genérico para gerar conteúdo com system e user prompts
+     */
+    private function generateContent($systemPrompt, $userPrompt) {
+        switch ($this->provider) {
+            case 'openai':
+                return $this->sendOpenAIRequest($systemPrompt, $userPrompt);
+            case 'gemini':
+                return $this->sendGeminiRequest($systemPrompt, $userPrompt);
+            case 'groq':
+                return $this->sendGroqRequest($systemPrompt, $userPrompt);
+        }
+    }
+
+    /**
      * OpenAI API
      */
     private function sendOpenAIRequest($systemPrompt, $userPrompt) {

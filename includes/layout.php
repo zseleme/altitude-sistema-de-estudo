@@ -153,6 +153,12 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                     <h3 class="px-4 text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">🇺🇸 Inglês</h3>
                     <ul class="space-y-2">
                         <li>
+                            <a href="/ingles/licoes.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
+                                <i class="fas fa-graduation-cap w-5 mr-3"></i>
+                                <span>Lições de Inglês</span>
+                            </a>
+                        </li>
+                        <li>
                             <a href="/ingles/anotacoes.php" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors">
                                 <i class="fas fa-sticky-note w-5 mr-3"></i>
                                 <span>Anotações</span>
@@ -362,9 +368,18 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
         <main class="flex-1 p-8">';
         }
         
-        echo '            <div class="max-w-7xl mx-auto">
-                ' . $content . '
-            </div>
+        echo '            <div class="max-w-7xl mx-auto">';
+
+        // Handle both string and callable content
+        if (is_callable($content)) {
+            ob_start();
+            $content(); // Call the function to render output
+            echo ob_get_clean(); // Capture and echo the output
+        } else {
+            echo $content; // Echo string content directly
+        }
+
+        echo '            </div>
         </main>
     </div>
 
@@ -1022,7 +1037,13 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
     </script>';
     } else {
         // Layout para páginas não logadas
-        echo $content;
+        if (is_callable($content)) {
+            ob_start();
+            $content();
+            echo ob_get_clean();
+        } else {
+            echo $content;
+        }
     }
 
     echo '</body>
