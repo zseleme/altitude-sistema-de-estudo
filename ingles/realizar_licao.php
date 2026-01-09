@@ -141,7 +141,7 @@ $content = function() use ($licaoId, $userId) {
                                 <h3 class="font-bold text-blue-900 mb-2">
                                     <i class="fas fa-lightbulb"></i> Conteúdo de Apoio
                                 </h3>
-                                <div class="text-blue-800 text-sm leading-relaxed whitespace-pre-wrap">${escapeHtml(licao.conteudo_apoio)}</div>
+                                <div class="text-blue-800 text-sm leading-relaxed whitespace-pre-wrap">${markdownToHtml(licao.conteudo_apoio)}</div>
                             </div>
                         `;
                     }
@@ -624,6 +624,25 @@ $content = function() use ($licaoId, $userId) {
                 "'": '&#039;'
             };
             return text ? String(text).replace(/[&<>"']/g, m => map[m]) : '';
+        }
+
+        function markdownToHtml(text) {
+            if (!text) return '';
+
+            // Primeiro escapar HTML para segurança
+            let html = escapeHtml(text);
+
+            // Converter Markdown básico
+            // **texto** para negrito
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+            // *texto* para itálico (apenas se não for parte de **)
+            html = html.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
+
+            // _texto_ para itálico
+            html = html.replace(/_(.+?)_/g, '<em>$1</em>');
+
+            return html;
         }
     </script>
 
