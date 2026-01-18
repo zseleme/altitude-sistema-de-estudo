@@ -1,55 +1,65 @@
 <?php
-require_once 'includes/auth.php';
-require_once 'includes/csrf_helper.php';
+// Disable error display to prevent header issues
+ini_set('display_errors', 0);
+error_reporting(E_ALL);
+
+// Start session first
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Load dependencies
+require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/csrf_helper.php';
 
 // Must be logged in to change password
-if (!isLoggedIn()) {
+if (!isset($_SESSION['user_id'])) {
     header('Location: /login.php');
     exit;
 }
 
+$userId = $_SESSION['user_id'];
 $db = Database::getInstance();
-$userId = getUserId();
 $isRequired = isset($_GET['required']) && $_GET['required'] == '1';
 $success = '';
 $error = '';
 
 // Process password change
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validate CSRF
-    CSRFHelper::validateRequest(false);
+    try {
+        // Validate CSRF
+        CSRFHelper::validateRequest(false);
 
-    $currentPassword = $_POST['current_password'] ?? '';
-    $newPassword = $_POST['new_password'] ?? '';
-    $confirmPassword = $_POST['confirm_password'] ?? '';
+        $currentPassword = $_POST['current_password'] ?? '';
+        $newPassword = $_POST['new_password'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
 
-    // Validate inputs
-    if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
-        $error = 'Todos os campos são obrigatórios.';
-    } elseif ($newPassword !== $confirmPassword) {
-        $error = 'As senhas não coincidem.';
-    } elseif (strlen($newPassword) < 8) {
-        $error = 'A nova senha deve ter no mínimo 8 caracteres.';
-    } elseif ($newPassword === 'admin123') {
-        $error = 'Por segurança, você não pode usar a senha padrão "admin123".';
-    } else {
-        // Verify current password
-        $user = $db->fetchOne(
-            "SELECT * FROM usuarios WHERE id = ?",
-            [$userId]
-        );
-
-        if (!$user || !password_verify($currentPassword, $user['senha'])) {
-            $error = 'Senha atual incorreta.';
+        // Validate inputs
+        if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
+            $error = 'Todos os campos são obrigatórios.';
+        } elseif ($newPassword !== $confirmPassword) {
+            $error = 'As senhas não coincidem.';
+        } elseif (strlen($newPassword) < 8) {
+            $error = 'A nova senha deve ter no mínimo 8 caracteres.';
+        } elseif ($newPassword === 'admin123') {
+            $error = 'Por segurança, você não pode usar a senha padrão "admin123".';
         } else {
-            // Check if new password is different from current
-            if (password_verify($newPassword, $user['senha'])) {
-                $error = 'A nova senha deve ser diferente da senha atual.';
-            } else {
-                // Update password
-                $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+            // Verify current password
+            $user = $db->fetchOne(
+                "SELECT * FROM usuarios WHERE id = ?",
+                [$userId]
+            );
 
-                try {
+            if (!$user || !password_verify($currentPassword, $user['senha'])) {
+                $error = 'Senha atual incorreta.';
+            } else {
+                // Check if new password is different from current
+                if (password_verify($newPassword, $user['senha'])) {
+                    $error = 'A nova senha deve ser diferente da senha atual.';
+                } else {
+                    // Update password
+                    $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+
                     $db->execute(
                         "UPDATE usuarios SET senha = ?, password_change_required = ? WHERE id = ?",
                         [$hashedPassword, 0, $userId]
@@ -64,20 +74,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($isRequired) {
                         header("refresh:2;url=/home.php");
                     }
-                } catch (Exception $e) {
-                    error_log("Error changing password: " . $e->getMessage());
-                    $error = 'Erro ao alterar senha. Tente novamente.';
                 }
             }
         }
+    } catch (Exception $e) {
+        error_log("Error changing password: " . $e->getMessage());
+        $error = 'Erro ao alterar senha. Tente novamente.';
     }
 }
 
-require_once 'includes/layout.php';
-
-renderSimpleLayout('Alterar Senha', function() use ($isRequired, $success, $error) {
-    ?>
-    <div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+// Get CSRF token
+$csrfToken = CSRFHelper::getToken();
+?>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alterar Senha - Altitude</title>
+    <meta name="csrf-token" content="<?php echo htmlspecialchars($csrfToken); ?>">
+    <link href="favicon.ico" rel="shortcut icon" type="image/vnd.microsoft.icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-md w-full space-y-8">
             <!-- Header -->
             <div>
@@ -133,7 +154,7 @@ renderSimpleLayout('Alterar Senha', function() use ($isRequired, $success, $erro
 
             <!-- Password Change Form -->
             <form class="mt-8 space-y-6" method="POST" action="">
-                <?php echo CSRFHelper::getTokenField(); ?>
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
                 <div class="rounded-md shadow-sm space-y-4">
                     <!-- Current Password -->
@@ -226,6 +247,5 @@ renderSimpleLayout('Alterar Senha', function() use ($isRequired, $success, $erro
             </div>
         </div>
     </div>
-    <?php
-});
-?>
+</body>
+</html>

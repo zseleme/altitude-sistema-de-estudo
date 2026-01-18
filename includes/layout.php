@@ -1115,4 +1115,34 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
     echo '</body>
 </html>';
 }
+
+/**
+ * Render simple layout (no sidebar) for login, register, password change pages
+ * @param string $title Page title
+ * @param callable|string $content Content to render (callback or string)
+ */
+function renderSimpleLayout($title, $content) {
+    echo '<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>' . htmlspecialchars($title) . ' - Altitude</title>
+    ' . CSRFHelper::getTokenMeta() . '
+    <link href="favicon.ico" rel="shortcut icon" type="image/vnd.microsoft.icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">';
+
+    // Render content
+    if (is_callable($content)) {
+        $content();
+    } else {
+        echo $content;
+    }
+
+    echo '</body>
+</html>';
+}
 ?>
