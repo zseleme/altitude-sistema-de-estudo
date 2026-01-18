@@ -3,6 +3,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/encryption_helper.php';
+require_once __DIR__ . '/../includes/input_validator.php';
 requireAdmin();
 
 $db = Database::getInstance();
@@ -11,46 +13,74 @@ $error = '';
 
 // Processar salvamento
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Validar CSRF token
+    CSRFHelper::validateRequest(false);
+
     $provider = $_POST['ai_provider'] ?? 'gemini';
 
-    try {
-        $db->beginTransaction();
+    // Validar dados de entrada
+    $validation = InputValidator::validateAIConfigData($_POST);
 
-        // Atualizar todas as configurações
-        $configs = [
-            'ai_provider' => $provider,
-            'openai_api_key' => trim($_POST['openai_api_key'] ?? ''),
-            'openai_model' => trim($_POST['openai_model'] ?? 'gpt-4o-mini'),
-            'gemini_api_key' => trim($_POST['gemini_api_key'] ?? ''),
-            'gemini_model' => trim($_POST['gemini_model'] ?? 'gemini-2.5-flash'),
-            'groq_api_key' => trim($_POST['groq_api_key'] ?? ''),
-            'groq_model' => trim($_POST['groq_model'] ?? 'llama-3.1-8b-instant'),
-            'youtube_api_key' => trim($_POST['youtube_api_key'] ?? ''),
-            'ai_temperature' => trim($_POST['ai_temperature'] ?? '0.3'),
-            'ai_max_tokens' => trim($_POST['ai_max_tokens'] ?? '4000')
-        ];
+    if (!$validation['valid']) {
+        $error = 'Dados inválidos: ' . implode(', ', $validation['errors']);
+    } else {
+        try {
+            $db->beginTransaction();
+
+            // Atualizar todas as configurações
+            $configs = [
+                'ai_provider' => $provider,
+                'openai_api_key' => trim($_POST['openai_api_key'] ?? ''),
+                'openai_model' => trim($_POST['openai_model'] ?? 'gpt-4o-mini'),
+                'gemini_api_key' => trim($_POST['gemini_api_key'] ?? ''),
+                'gemini_model' => trim($_POST['gemini_model'] ?? 'gemini-2.5-flash'),
+                'groq_api_key' => trim($_POST['groq_api_key'] ?? ''),
+                'groq_model' => trim($_POST['groq_model'] ?? 'llama-3.1-8b-instant'),
+                'youtube_api_key' => trim($_POST['youtube_api_key'] ?? ''),
+                'ai_temperature' => trim($_POST['ai_temperature'] ?? '0.3'),
+                'ai_max_tokens' => trim($_POST['ai_max_tokens'] ?? '4000')
+            ];
+
+        // Encrypt API keys before saving
+        $keysToEncrypt = ['openai_api_key', 'gemini_api_key', 'groq_api_key', 'youtube_api_key'];
 
         foreach ($configs as $chave => $valor) {
+            // Encrypt API keys
+            if (in_array($chave, $keysToEncrypt) && !empty($valor)) {
+                $valor = EncryptionHelper::encryptIfNeeded($valor);
+            }
+
             $db->execute(
                 "UPDATE configuracoes SET valor = ?, data_atualizacao = CURRENT_TIMESTAMP WHERE chave = ?",
                 [$valor, $chave]
             );
         }
 
-        $db->commit();
-        $success = 'Configurações salvas com sucesso!';
+            $db->commit();
+            $success = 'Configurações salvas com sucesso!';
 
-    } catch (Exception $e) {
-        $db->rollback();
-        $error = 'Erro ao salvar configurações: ' . $e->getMessage();
+        } catch (Exception $e) {
+            $db->rollback();
+            $error = 'Erro ao salvar configurações: ' . $e->getMessage();
+        }
     }
 }
 
 // Buscar configurações atuais
 $configsRaw = $db->fetchAll("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'ai_%' OR chave LIKE '%_api_key' OR chave LIKE '%_model'");
 $configs = [];
+$keysToDecrypt = ['openai_api_key', 'gemini_api_key', 'groq_api_key', 'youtube_api_key'];
+
 foreach ($configsRaw as $config) {
-    $configs[$config['chave']] = $config['valor'];
+    $chave = $config['chave'];
+    $valor = $config['valor'];
+
+    // Decrypt API keys for display
+    if (in_array($chave, $keysToDecrypt) && !empty($valor)) {
+        $valor = EncryptionHelper::decrypt($valor);
+    }
+
+    $configs[$chave] = $valor;
 }
 
 // Verificar se tem YouTube API Key configurada

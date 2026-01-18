@@ -4,7 +4,13 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
+require_once __DIR__ . '/../includes/error_helper.php';
+require_once __DIR__ . '/../includes/security_headers.php';
 requireLogin();
+
+// Apply minimal security headers for API
+SecurityHeaders::applyMinimal();
 
 header('Content-Type: application/json');
 
@@ -15,6 +21,8 @@ try {
     $method = $_SERVER['REQUEST_METHOD'];
 
     if ($method === 'POST') {
+        // Validar CSRF token
+        CSRFHelper::validateRequest();
         // Adicionar curso aos favoritos
         $input = json_decode(file_get_contents('php://input'), true);
 
@@ -76,9 +84,10 @@ try {
     }
 
 } catch (Exception $e) {
+    error_log("Erro em favoritar_curso.php: " . $e->getMessage());
     http_response_code(400);
     echo json_encode([
         'success' => false,
-        'error' => $e->getMessage()
+        'error' => 'Erro ao processar solicitação. Tente novamente.'
     ]);
 }

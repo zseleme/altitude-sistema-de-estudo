@@ -57,6 +57,7 @@ class AIHelper {
     private function loadConfigsFromDatabase() {
         try {
             require_once __DIR__ . '/../config/database.php';
+            require_once __DIR__ . '/encryption_helper.php';
             $db = Database::getInstance();
 
             $configsRaw = $db->fetchAll("
@@ -66,8 +67,18 @@ class AIHelper {
             ");
 
             $configs = [];
+            $keysToDecrypt = ['openai_api_key', 'gemini_api_key', 'groq_api_key', 'youtube_api_key'];
+
             foreach ($configsRaw as $config) {
-                $configs[$config['chave']] = $config['valor'];
+                $chave = $config['chave'];
+                $valor = $config['valor'];
+
+                // Decrypt API keys
+                if (in_array($chave, $keysToDecrypt) && !empty($valor)) {
+                    $valor = EncryptionHelper::decrypt($valor);
+                }
+
+                $configs[$chave] = $valor;
             }
 
             return $configs;

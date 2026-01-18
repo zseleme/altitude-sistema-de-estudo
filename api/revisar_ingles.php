@@ -1,12 +1,18 @@
 <?php
-header('Content-Type: application/json');
-
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ai_helper.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
+require_once __DIR__ . '/../includes/rate_limiter.php';
+require_once __DIR__ . '/../includes/security_headers.php';
+
+// Apply minimal security headers for API
+SecurityHeaders::applyMinimal();
+
+header('Content-Type: application/json');
 
 // Verificar autenticação
 if (!isLoggedIn()) {
@@ -20,6 +26,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['success' => false, 'error' => 'Método não permitido']);
     exit;
+}
+
+// Validar CSRF token
+CSRFHelper::validateRequest();
+
+// Rate limiting para operações de IA
+$rateLimiter = new RateLimiter();
+$userId = getUserId();
+$rateCheck = $rateLimiter->checkAIRateLimit($userId, 'ai_revision');
+
+if (!$rateCheck['allowed']) {
+    RateLimiter::sendRateLimitResponse($rateCheck);
 }
 
 // Verificar se a API está configurada
@@ -100,6 +118,10 @@ try {
         );
     }
 
+    // Registrar uso da API de IA para rate limiting
+    $rateLimiter->recordRequest($userId, 'ai_revision', 3600);
+    $rateLimiter->recordRequest($userId, 'ai_revision', 60);
+
     echo json_encode([
         'success' => true,
         'review' => $result['review'],
@@ -107,10 +129,11 @@ try {
     ]);
 
 } catch (Exception $e) {
+    error_log("Erro em revisar_ingles.php: " . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Erro ao processar revisão: ' . $e->getMessage()
+        'error' => 'Erro ao processar revisão. Tente novamente.'
     ]);
 }
 ?>

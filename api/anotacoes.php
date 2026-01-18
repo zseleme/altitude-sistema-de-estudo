@@ -3,9 +3,14 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-header('Content-Type: application/json');
-
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
+require_once __DIR__ . '/../includes/security_headers.php';
+
+// Apply minimal security headers for API
+SecurityHeaders::applyMinimal();
+
+header('Content-Type: application/json');
 
 // Verificar se está logado
 if (!isLoggedIn()) {
@@ -17,6 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'error' => 'Método inválido']);
     exit;
 }
+
+// Validar CSRF token
+CSRFHelper::validateRequest();
 
 $aulaId = (int)($_POST['aula_id'] ?? 0);
 $conteudo = trim($_POST['conteudo'] ?? '');

@@ -2,6 +2,12 @@
 session_start();
 require_once '../includes/auth.php';
 require_once '../includes/ai_helper.php';
+require_once '../includes/csrf_helper.php';
+require_once '../includes/rate_limiter.php';
+require_once '../includes/security_headers.php';
+
+// Apply minimal security headers for API
+SecurityHeaders::applyMinimal();
 
 header('Content-Type: application/json');
 
@@ -9,6 +15,18 @@ if (!isLoggedIn()) {
     http_response_code(401);
     echo json_encode(['success' => false, 'error' => 'Não autorizado']);
     exit;
+}
+
+// Validar CSRF token
+CSRFHelper::validateRequest();
+
+// Rate limiting para operações de IA
+$rateLimiter = new RateLimiter();
+$userId = getUserId();
+$rateCheck = $rateLimiter->checkAIRateLimit($userId, 'ai_performance');
+
+if (!$rateCheck['allowed']) {
+    RateLimiter::sendRateLimitResponse($rateCheck);
 }
 
 $database = Database::getInstance();
@@ -147,15 +165,20 @@ try {
     $stmt->bindParam(':tentativa_id', $tentativa_id);
     $stmt->execute();
 
+    // Registrar uso da API de IA para rate limiting
+    $rateLimiter->recordRequest($userId, 'ai_performance', 3600);
+    $rateLimiter->recordRequest($userId, 'ai_performance', 60);
+
     echo json_encode([
         'success' => true,
         'analise' => $analise
     ]);
 
 } catch (Exception $e) {
+    error_log("Erro em analise_desempenho_ia.php: " . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => $e->getMessage()
+        'error' => 'Erro ao processar análise de desempenho. Tente novamente.'
     ]);
 }

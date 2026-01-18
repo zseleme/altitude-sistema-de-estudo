@@ -1,6 +1,11 @@
 <?php
 session_start();
 require_once '../includes/auth.php';
+require_once '../includes/csrf_helper.php';
+require_once '../includes/security_headers.php';
+
+// Apply minimal security headers for API
+SecurityHeaders::applyMinimal();
 
 header('Content-Type: application/json');
 
@@ -9,6 +14,9 @@ if (!isAdmin()) {
     echo json_encode(['error' => 'Acesso negado']);
     exit;
 }
+
+// Validar CSRF para todas as operações (todas são write operations)
+CSRFHelper::validateRequest();
 
 $database = Database::getInstance();
 $db = $database->getConnection();
@@ -145,6 +153,7 @@ try {
     }
 
 } catch(Exception $e) {
+    error_log("Erro em questoes.php: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    echo json_encode(['error' => 'Erro ao processar questões. Tente novamente.']);
 }

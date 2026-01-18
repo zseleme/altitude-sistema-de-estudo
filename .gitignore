@@ -1,5 +1,6 @@
 # Arquivos de configuração sensíveis
 config/database.php
+config/.installed
 .env
 
 # Banco de dados
