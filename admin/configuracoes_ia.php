@@ -220,6 +220,7 @@ $content = '
 
                 <!-- Configuration Form -->
                 <form method="POST" class="space-y-6">
+                    <?php echo CSRFHelper::getTokenField(); ?>
                     <!-- Provider Selection -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h2 class="text-xl font-semibold text-gray-900 mb-4">
