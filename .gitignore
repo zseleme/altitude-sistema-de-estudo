@@ -1,6 +1,7 @@
 # Arquivos de configuração sensíveis
 config/database.php
 config/.installed
+config/encryption.key
 .env
 
 # Banco de dados

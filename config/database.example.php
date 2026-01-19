@@ -30,8 +30,12 @@ class Database {
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES => false,
                 ]);
-                
+
                 // Definir o schema padrão
+                // Validate schema name (from config, but validate for defense in depth)
+                if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', DB_SCHEMA)) {
+                    throw new Exception('Nome do schema inválido');
+                }
                 $this->pdo->exec("SET search_path TO " . DB_SCHEMA);
             } else {
                 // Conexão SQLite
