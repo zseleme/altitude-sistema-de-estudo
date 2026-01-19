@@ -20,6 +20,11 @@ $error = '';
 // Processar salvamento
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        // Debug: log POST data
+        error_log("POST recebido:");
+        error_log("- gemini_api_key: " . (empty($_POST['gemini_api_key']) ? '(vazio)' : substr($_POST['gemini_api_key'], 0, 10) . '...'));
+        error_log("- openai_api_key: " . (empty($_POST['openai_api_key']) ? '(vazio)' : substr($_POST['openai_api_key'], 0, 10) . '...'));
+
         // Validar CSRF token
         CSRFHelper::validateRequest(false);
 
@@ -51,15 +56,35 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
         $keysToEncrypt = ['openai_api_key', 'gemini_api_key', 'groq_api_key', 'youtube_api_key'];
 
         foreach ($configs as $chave => $valor) {
+            // Pular API keys vazias para não sobrescrever valores existentes
+            if (in_array($chave, $keysToEncrypt) && empty($valor)) {
+                error_log("Pulando {$chave} - valor vazio, mantendo existente");
+                continue;
+            }
+
             // Encrypt API keys
             if (in_array($chave, $keysToEncrypt) && !empty($valor)) {
                 $valor = EncryptionHelper::encryptIfNeeded($valor);
             }
 
-            $db->execute(
-                "UPDATE configuracoes SET valor = ?, data_atualizacao = CURRENT_TIMESTAMP WHERE chave = ?",
-                [$valor, $chave]
-            );
+            // Verificar se o registro existe
+            $exists = $db->fetchOne("SELECT id, valor FROM configuracoes WHERE chave = ?", [$chave]);
+
+            if ($exists) {
+                // UPDATE se existe
+                $db->execute(
+                    "UPDATE configuracoes SET valor = ?, data_atualizacao = CURRENT_TIMESTAMP WHERE chave = ?",
+                    [$valor, $chave]
+                );
+                error_log("Configuração atualizada: {$chave} = " . (empty($valor) ? '(vazio)' : '(com valor)'));
+            } else {
+                // INSERT se não existe
+                $db->execute(
+                    "INSERT INTO configuracoes (chave, valor, descricao, tipo, data_criacao, data_atualizacao) VALUES (?, ?, '', 'text', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                    [$chave, $valor]
+                );
+                error_log("Configuração criada: {$chave} = " . (empty($valor) ? '(vazio)' : '(com valor)'));
+            }
         }
 
             $db->commit();
@@ -88,10 +113,22 @@ foreach ($configsRaw as $config) {
 
     // Decrypt API keys for display
     if (in_array($chave, $keysToDecrypt) && !empty($valor)) {
-        $valor = EncryptionHelper::decrypt($valor);
+        try {
+            $valorAntes = $valor;
+            $valorDecrypt = EncryptionHelper::decrypt($valor);
+            // Se descriptografia falhar (retornar vazio/falso), manter o valor original
+            if ($valorDecrypt !== false && $valorDecrypt !== '') {
+                $valor = $valorDecrypt;
+            }
+            error_log("Descriptografando {$chave}: " . substr($valorAntes, 0, 20) . "... => " . (empty($valor) ? '(vazio)' : substr($valor, 0, 10) . '...'));
+        } catch (Exception $e) {
+            error_log("Erro ao descriptografar {$chave}: " . $e->getMessage());
+            // Manter valor original se descriptografia falhar
+        }
     }
 
     $configs[$chave] = $valor;
+    error_log("Config carregada: {$chave} = " . (empty($valor) ? '(vazio)' : '(com valor)'));
 }
 
 // Verificar se tem YouTube API Key configurada
