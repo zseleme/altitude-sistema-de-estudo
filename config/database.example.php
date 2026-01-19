@@ -1,7 +1,7 @@
 <?php
 // Configuração do tipo de banco de dados
 // Opções: 'postgresql' ou 'sqlite'
-define('DB_TYPE', 'postgresql'); // Altere para 'sqlite' se quiser usar SQLite
+define('DB_TYPE', 'sqlite'); // Altere para 'postgresql' se quiser usar PostgreSQL
 
 if (DB_TYPE === 'postgresql') {
     // Configurações do banco de dados PostgreSQL

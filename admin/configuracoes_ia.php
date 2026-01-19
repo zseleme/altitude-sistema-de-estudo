@@ -1,8 +1,14 @@
 <?php
+// Habilitar exibição de erros para debug (remover em produção)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
 require_once __DIR__ . '/../includes/encryption_helper.php';
 require_once __DIR__ . '/../includes/input_validator.php';
 requireAdmin();
@@ -13,18 +19,18 @@ $error = '';
 
 // Processar salvamento
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validar CSRF token
-    CSRFHelper::validateRequest(false);
+    try {
+        // Validar CSRF token
+        CSRFHelper::validateRequest(false);
 
-    $provider = $_POST['ai_provider'] ?? 'gemini';
+        $provider = $_POST['ai_provider'] ?? 'gemini';
 
-    // Validar dados de entrada
-    $validation = InputValidator::validateAIConfigData($_POST);
+        // Validar dados de entrada
+        $validation = InputValidator::validateAIConfigData($_POST);
 
-    if (!$validation['valid']) {
-        $error = 'Dados inválidos: ' . implode(', ', $validation['errors']);
-    } else {
-        try {
+        if (!$validation['valid']) {
+            $error = 'Dados inválidos: ' . implode(', ', $validation['errors']);
+        } else {
             $db->beginTransaction();
 
             // Atualizar todas as configurações
@@ -58,11 +64,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
 
             $db->commit();
             $success = 'Configurações salvas com sucesso!';
-
-        } catch (Exception $e) {
-            $db->rollback();
-            $error = 'Erro ao salvar configurações: ' . $e->getMessage();
         }
+    } catch (Exception $e) {
+        try {
+            $db->rollback();
+        } catch (Exception $rollbackError) {
+            // Ignora erro de rollback se não houver transação ativa
+        }
+        $error = 'Erro ao salvar configurações: ' . $e->getMessage();
+        error_log('Erro em configuracoes_ia.php: ' . $e->getMessage());
+        error_log($e->getTraceAsString());
     }
 }
 
