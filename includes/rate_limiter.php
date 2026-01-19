@@ -144,15 +144,22 @@ class RateLimiter {
         }
 
         try {
+            // Create table
             $this->db->execute("
                 CREATE TABLE IF NOT EXISTS rate_limit_log (
                     id INTEGER PRIMARY KEY " . ($this->db->isPostgreSQL() ? "SERIAL" : "AUTOINCREMENT") . ",
                     user_id INTEGER NOT NULL,
                     operation VARCHAR(100) NOT NULL,
-                    timestamp " . ($this->db->isSQLite() ? "DATETIME" : "TIMESTAMP") . " DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_user_operation (user_id, operation, timestamp)
+                    timestamp " . ($this->db->isSQLite() ? "DATETIME" : "TIMESTAMP") . " DEFAULT CURRENT_TIMESTAMP
                 )
             ");
+
+            // Create index separately (SQLite doesn't support inline INDEX in CREATE TABLE)
+            $this->db->execute("
+                CREATE INDEX IF NOT EXISTS idx_user_operation
+                ON rate_limit_log(user_id, operation, timestamp)
+            ");
+
             $tableCreated = true;
         } catch (Exception $e) {
             error_log("Failed to create rate_limit_log table: " . $e->getMessage());

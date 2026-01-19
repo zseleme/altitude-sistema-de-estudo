@@ -5,6 +5,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/encryption_helper.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
 requireAdmin();
 
 header('Content-Type: application/json');
@@ -202,6 +203,9 @@ try {
         ]);
 
     } elseif ($method === 'PUT') {
+        // Validar CSRF token
+        CSRFHelper::validateRequest();
+
         // Importar vídeos para o banco de dados
         $input = json_decode(file_get_contents('php://input'), true);
 
