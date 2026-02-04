@@ -1,54 +1,54 @@
 <?php
-// Configurações de segurança da sessão
-if (session_status() === PHP_SESSION_NONE) {
-    // Configure session security settings before starting
-    ini_set('session.cookie_httponly', '1');  // Prevent JavaScript access to session cookie
-    ini_set('session.use_only_cookies', '1'); // Only use cookies for session ID
-    ini_set('session.cookie_samesite', 'Strict'); // CSRF protection
-    ini_set('session.use_strict_mode', '1');   // Reject uninitialized session IDs
-    ini_set('session.sid_length', '48');       // Longer session ID
-    ini_set('session.sid_bits_per_character', '6'); // More entropy
+/**
+ * Authentication and session management.
+ *
+ * Configures secure session settings, provides login/logout,
+ * role-based access control, and data retrieval helpers for
+ * courses, lessons, progress, and search.
+ */
 
-    // Enable secure cookie if using HTTPS
+if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.cookie_samesite', 'Strict');
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.sid_length', '48');
+    ini_set('session.sid_bits_per_character', '6');
+
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
                || $_SERVER['SERVER_PORT'] == 443
                || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 
     if ($isHttps) {
-        ini_set('session.cookie_secure', '1'); // Only send cookie over HTTPS
+        ini_set('session.cookie_secure', '1');
     }
 
-    // Session timeout: 2 hours
     ini_set('session.gc_maxlifetime', '7200');
     ini_set('session.cookie_lifetime', '7200');
 
     session_start();
 
-    // Session hijacking protection - regenerate ID periodically
+    // Regenerate session ID every 30 minutes to limit hijacking window
     if (!isset($_SESSION['created'])) {
         $_SESSION['created'] = time();
     } elseif (time() - $_SESSION['created'] > 1800) {
-        // Regenerate session ID every 30 minutes
         session_regenerate_id(true);
         $_SESSION['created'] = time();
     }
 
-    // Session fixation protection - validate session
+    // Detect user-agent change as a session hijacking signal
     if (isset($_SESSION['user_id'])) {
-        // Check if user agent changed (possible session hijacking)
         $currentUserAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
         if (!isset($_SESSION['user_agent'])) {
             $_SESSION['user_agent'] = $currentUserAgent;
         } elseif ($_SESSION['user_agent'] !== $currentUserAgent) {
-            // User agent changed - possible session hijacking
             session_unset();
             session_destroy();
             session_start();
         }
 
-        // Check if IP address changed (optional - may cause issues with mobile users)
-        // Uncomment if needed:
+        // TODO: Optionally validate IP (may break for mobile users switching networks)
         // $currentIP = $_SERVER['REMOTE_ADDR'] ?? '';
         // if (!isset($_SESSION['user_ip'])) {
         //     $_SESSION['user_ip'] = $currentIP;
@@ -60,30 +60,34 @@ if (session_status() === PHP_SESSION_NONE) {
     }
 }
 
-// Auto-instalação do banco de dados se necessário
 require_once __DIR__ . '/auto_install.php';
-
 require_once __DIR__ . '/../config/database.php';
 
-function isLoggedIn() {
+/** @return bool Whether a user is currently authenticated. */
+function isLoggedIn(): bool {
     return isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
 }
 
-function getUserId() {
+/** @return int|null The current user's ID, or null if not logged in. */
+function getUserId(): ?int {
     return $_SESSION['user_id'] ?? null;
 }
 
-function isAdmin() {
+/** @return bool Whether the current user has admin privileges. */
+function isAdmin(): bool {
     return isLoggedIn() && ($_SESSION['is_admin'] ?? false);
 }
 
-function requireLogin() {
+/**
+ * Redirect to login if not authenticated.
+ * Also enforces mandatory password change for flagged accounts.
+ */
+function requireLogin(): void {
     if (!isLoggedIn()) {
         header('Location: /login.php');
         exit;
     }
 
-    // Check if password change is required (skip if already on change password page)
     $currentPage = basename($_SERVER['PHP_SELF']);
     if (($currentPage !== 'alterar_senha.php') && ($_SESSION['password_change_required'] ?? false)) {
         header('Location: /alterar_senha.php?required=1');
@@ -91,7 +95,8 @@ function requireLogin() {
     }
 }
 
-function requireAdmin() {
+/** Redirect to home if the current user is not an admin. */
+function requireAdmin(): void {
     requireLogin();
     if (!isAdmin()) {
         header('Location: /home.php');
@@ -99,15 +104,21 @@ function requireAdmin() {
     }
 }
 
-function login($email, $password) {
+/**
+ * Authenticate a user by email and password.
+ *
+ * @param string $email    The user's email address.
+ * @param string $password The plaintext password to verify.
+ * @return bool True on successful authentication.
+ */
+function login(string $email, string $password): bool {
     $db = Database::getInstance();
     $user = $db->fetchOne(
         "SELECT * FROM usuarios WHERE email = ? AND ativo = TRUE",
         [$email]
     );
-    
+
     if ($user && password_verify($password, $user['senha'])) {
-        // Regenerate session ID to prevent session fixation attacks
         session_regenerate_id(true);
 
         $_SESSION['user_id'] = $user['id'];
@@ -115,22 +126,19 @@ function login($email, $password) {
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['is_admin'] = $user['is_admin'] ?? false;
         $_SESSION['password_change_required'] = $user['password_change_required'] ?? false;
-
-        // Set security tracking variables
         $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
         $_SESSION['created'] = time();
 
         return true;
     }
-    
+
     return false;
 }
 
-function logout() {
-    // Clear all session variables
-    $_SESSION = array();
+/** Destroy the session, clear cookies, and redirect to the landing page. */
+function logout(): void {
+    $_SESSION = [];
 
-    // Delete session cookie
     if (ini_get("session.use_cookies")) {
         $params = session_get_cookie_params();
         setcookie(session_name(), '', time() - 42000,
@@ -139,18 +147,19 @@ function logout() {
         );
     }
 
-    // Destroy the session
     session_destroy();
     header('Location: /');
     exit;
 }
 
-function getCategorias() {
+/** @return array All active categories ordered by name. */
+function getCategorias(): array {
     $db = Database::getInstance();
     return $db->fetchAll("SELECT * FROM categorias WHERE ativo = TRUE ORDER BY nome");
 }
 
-function getCursosByCategoria($categoriaId) {
+/** @return array Active courses for a given category. */
+function getCursosByCategoria(int $categoriaId): array {
     $db = Database::getInstance();
     return $db->fetchAll(
         "SELECT * FROM cursos WHERE categoria_id = ? AND ativo = TRUE ORDER BY titulo",
@@ -158,7 +167,8 @@ function getCursosByCategoria($categoriaId) {
     );
 }
 
-function getAulasByCurso($cursoId) {
+/** @return array Active lessons for a given course, ordered by position. */
+function getAulasByCurso(int $cursoId): array {
     $db = Database::getInstance();
     return $db->fetchAll(
         "SELECT * FROM aulas WHERE curso_id = ? AND ativo = TRUE ORDER BY ordem",
@@ -166,162 +176,140 @@ function getAulasByCurso($cursoId) {
     );
 }
 
-function getAulaById($id) {
+/** @return array|null Lesson with course and category info, or null if not found. */
+function getAulaById(int $id): ?array {
     $db = Database::getInstance();
-    $aula = $db->fetchOne(
-        "SELECT a.*, c.titulo as curso_titulo, cat.nome as categoria_nome 
-         FROM aulas a 
-         JOIN cursos c ON a.curso_id = c.id 
-         JOIN categorias cat ON c.categoria_id = cat.id 
+    return $db->fetchOne(
+        "SELECT a.*, c.titulo as curso_titulo, cat.nome as categoria_nome
+         FROM aulas a
+         JOIN cursos c ON a.curso_id = c.id
+         JOIN categorias cat ON c.categoria_id = cat.id
          WHERE a.id = ? AND a.ativo = TRUE",
         [$id]
     );
-    return $aula;
 }
 
-function getCursoById($id) {
+/** @return array|null Course with category info, or null if not found. */
+function getCursoById(int $id): ?array {
     $db = Database::getInstance();
     return $db->fetchOne(
-        "SELECT c.*, cat.nome as categoria_nome 
-         FROM cursos c 
-         JOIN categorias cat ON c.categoria_id = cat.id 
+        "SELECT c.*, cat.nome as categoria_nome
+         FROM cursos c
+         JOIN categorias cat ON c.categoria_id = cat.id
          WHERE c.id = ? AND c.ativo = TRUE",
         [$id]
     );
 }
 
-function getVideoInfo($url) {
+/**
+ * Parse a video URL and return embed information.
+ *
+ * Supports YouTube, Vimeo, OneDrive, and Dropbox share links.
+ * Dropbox links return 'is_direct' => true, indicating the embed_url
+ * should be used in a <video> tag rather than an <iframe>.
+ *
+ * @param string $url The original video URL.
+ * @return array|null Associative array with 'type', 'id', 'embed_url' keys, or null if unrecognized.
+ */
+function getVideoInfo(string $url): ?array {
     if (empty($url)) {
         return null;
     }
-    
-    // YouTube - múltiplos formatos
+
+    // YouTube
     $youtubePatterns = [
         '/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/',
         '/youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]+)/',
         '/youtube\.com\/v\/([a-zA-Z0-9_-]+)/',
-        '/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/'
+        '/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/',
     ];
-    
+
     foreach ($youtubePatterns as $pattern) {
         if (preg_match($pattern, $url, $matches)) {
             return [
                 'type' => 'youtube',
                 'id' => $matches[1],
-                'embed_url' => 'https://www.youtube.com/embed/' . $matches[1] . '?rel=0&modestbranding=1'
+                'embed_url' => 'https://www.youtube.com/embed/' . $matches[1] . '?rel=0&modestbranding=1',
             ];
         }
     }
-    
+
     // Vimeo
     if (preg_match('/vimeo\.com\/(\d+)/', $url, $matches)) {
         return [
             'type' => 'vimeo',
             'id' => $matches[1],
-            'embed_url' => 'https://player.vimeo.com/video/' . $matches[1]
+            'embed_url' => 'https://player.vimeo.com/video/' . $matches[1],
         ];
     }
-    
-    // OneDrive - formatos: 1drv.ms/v/... ou onedrive.live.com
-    if (preg_match('/1drv\.ms\/v\/[cs]\/([a-zA-Z0-9]+)\/([A-Za-z0-9_-]+)/', $url, $matches) || 
+
+    // OneDrive -- standard share format with resid
+    if (preg_match('/1drv\.ms\/v\/[cs]\/([a-zA-Z0-9]+)\/([A-Za-z0-9_-]+)/', $url, $matches) ||
         preg_match('/onedrive\.live\.com\/.*resid=([A-Z0-9]+)(?:%21|!)(\d+)/', $url, $matches)) {
-        
-        // Extrair o ID do vídeo do OneDrive
-        $videoId = isset($matches[2]) ? $matches[2] : '';
-        $resId = isset($matches[1]) ? $matches[1] : '';
-        
-        // Construir URL de embed do OneDrive
-        // Formato: https://onedrive.live.com/embed?resid=RESID&authkey=AUTHKEY
+
+        $videoId = $matches[2] ?? '';
+        $resId = $matches[1] ?? '';
+
         if (!empty($videoId) && !empty($resId)) {
             $embedUrl = 'https://onedrive.live.com/embed?resid=' . $resId . '!' . $videoId . '&authkey=!PLACEHOLDER';
-            
-            // Se a URL original tem parâmetros, tentar extrair authkey
+
             if (preg_match('/authkey=([^&]+)/', $url, $authMatch)) {
                 $embedUrl = str_replace('!PLACEHOLDER', urldecode($authMatch[1]), $embedUrl);
             } else {
-                // Tentar construir embed sem authkey (pode não funcionar para vídeos privados)
                 $embedUrl = str_replace('&authkey=!PLACEHOLDER', '', $embedUrl);
             }
-            
-            return [
-                'type' => 'onedrive',
-                'id' => $videoId,
-                'embed_url' => $embedUrl
-            ];
+
+            return ['type' => 'onedrive', 'id' => $videoId, 'embed_url' => $embedUrl];
         }
     }
-    
-    // OneDrive - formato alternativo (link direto de compartilhamento)
-    // Exemplo: https://1drv.ms/v/c/6ffbbfe204ee7e2c/IQR3qYFglE9LSr0T1MmaXyRwAfxUL9D0y2746RF0aM7do0U
+
+    // OneDrive -- alternate direct share format
     if (preg_match('/1drv\.ms\/v\/[cs]\/([a-f0-9]+)\/([A-Za-z0-9_-]+)/', $url, $matches)) {
-        $resId = $matches[1];
-        $videoId = $matches[2];
-        
-        // Converter para formato de embed
-        $embedUrl = 'https://onedrive.live.com/embed?resid=' . strtoupper($resId) . '!' . $videoId;
-        
         return [
             'type' => 'onedrive',
-            'id' => $videoId,
-            'embed_url' => $embedUrl
+            'id' => $matches[2],
+            'embed_url' => 'https://onedrive.live.com/embed?resid=' . strtoupper($matches[1]) . '!' . $matches[2],
         ];
     }
-    
-    // Dropbox - links de compartilhamento
-    // Formatos: dropbox.com/s/..., dropbox.com/scl/..., dl.dropboxusercontent.com
-    if (preg_match('/dropbox\.com\/(s|scl)\//', $url, $matches) || 
+
+    // Dropbox -- converts share links to direct download URLs for <video> playback
+    if (preg_match('/dropbox\.com\/(s|scl)\//', $url) ||
         preg_match('/dl\.dropboxusercontent\.com/', $url)) {
-        
-        // Converter para link de download direto se necessário
+
         $directUrl = $url;
-        
-        // Se for link de compartilhamento do dropbox.com, converter para dl.dropboxusercontent.com
+
         if (strpos($url, 'dropbox.com/s/') !== false || strpos($url, 'dropbox.com/scl/') !== false) {
-            // Trocar www.dropbox.com por dl.dropboxusercontent.com
             $directUrl = str_replace('www.dropbox.com', 'dl.dropboxusercontent.com', $url);
             $directUrl = str_replace('dropbox.com', 'dl.dropboxusercontent.com', $directUrl);
-            
-            // Remover parâmetro dl=0 se existir e adicionar raw=1 para download direto
             $directUrl = preg_replace('/[?&]dl=0/', '', $directUrl);
-            
-            // Se não tiver parâmetros, adicionar ?
-            if (strpos($directUrl, '?') === false) {
-                $directUrl .= '?raw=1';
-            } else {
-                $directUrl .= '&raw=1';
-            }
+            $directUrl .= (strpos($directUrl, '?') === false ? '?raw=1' : '&raw=1');
         }
-        
-        // Extrair ID do arquivo
+
         preg_match('/\/([a-zA-Z0-9_-]+)\.([a-z0-9]+)(\?|$)/', $directUrl, $fileMatch);
-        $fileId = isset($fileMatch[1]) ? $fileMatch[1] : substr(md5($url), 0, 10);
-        
+        $fileId = $fileMatch[1] ?? substr(md5($url), 0, 10);
+
         return [
             'type' => 'dropbox',
             'id' => $fileId,
             'embed_url' => $directUrl,
-            'is_direct' => true // Indica que é um link direto para <video>
+            'is_direct' => true,
         ];
     }
-    
-    // Se já é uma URL de embed, retorna como está
-    if (strpos($url, 'youtube.com/embed/') !== false || 
+
+    // Already an embed URL -- pass through
+    if (strpos($url, 'youtube.com/embed/') !== false ||
         strpos($url, 'player.vimeo.com/video/') !== false ||
         strpos($url, 'onedrive.live.com/embed') !== false) {
-        return [
-            'type' => 'embed',
-            'id' => '',
-            'embed_url' => $url
-        ];
+        return ['type' => 'embed', 'id' => '', 'embed_url' => $url];
     }
-    
+
     return null;
 }
 
-// Manter compatibilidade com código existente
-function getYouTubeVideoId($url) {
+/** @deprecated Use getVideoInfo() instead. Kept for backward compatibility. */
+function getYouTubeVideoId(string $url): ?string {
     $info = getVideoInfo($url);
-    return $info && $info['type'] === 'youtube' ? $info['id'] : null;
+    return ($info && $info['type'] === 'youtube') ? $info['id'] : null;
 }
 
 // Funções de progresso do curso
