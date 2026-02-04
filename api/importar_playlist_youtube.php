@@ -4,6 +4,8 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/encryption_helper.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
 requireAdmin();
 
 header('Content-Type: application/json');
@@ -14,7 +16,14 @@ $db = Database::getInstance();
 function getYoutubeApiKey() {
     global $db;
     $config = $db->fetchOne("SELECT valor FROM configuracoes WHERE chave = 'youtube_api_key'");
-    return $config ? $config['valor'] : '';
+    $encryptedKey = $config ? $config['valor'] : '';
+
+    // Decrypt the key if it's encrypted
+    if (!empty($encryptedKey)) {
+        return EncryptionHelper::decrypt($encryptedKey);
+    }
+
+    return '';
 }
 
 // Função para extrair o ID da playlist de diferentes formatos de URL
@@ -140,6 +149,9 @@ try {
     $method = $_SERVER['REQUEST_METHOD'];
 
     if ($method === 'POST') {
+        // Validar CSRF token
+        CSRFHelper::validateRequest();
+
         $input = json_decode(file_get_contents('php://input'), true);
 
         if (!isset($input['playlist_url'])) {
@@ -191,6 +203,9 @@ try {
         ]);
 
     } elseif ($method === 'PUT') {
+        // Validar CSRF token
+        CSRFHelper::validateRequest();
+
         // Importar vídeos para o banco de dados
         $input = json_decode(file_get_contents('php://input'), true);
 

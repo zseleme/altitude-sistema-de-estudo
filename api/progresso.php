@@ -3,6 +3,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
+require_once __DIR__ . '/../includes/error_helper.php';
 requireLogin();
 
 header('Content-Type: application/json');
@@ -10,6 +12,8 @@ header('Content-Type: application/json');
 $db = Database::getInstance();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Validar CSRF token
+    CSRFHelper::validateRequest();
     $aulaId = (int)($_POST['aula_id'] ?? 0);
     $concluida = isset($_POST['concluida']) ? ($_POST['concluida'] === 'true' || $_POST['concluida'] === '1') : false;
     $usuarioId = $_SESSION['user_id'];
@@ -48,7 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => 'Erro ao salvar progresso: ' . $e->getMessage()]);
+        error_log("Erro ao salvar progresso: " . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Erro ao salvar progresso. Tente novamente.']);
     }
     
 } elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -73,7 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => 'Erro ao buscar progresso: ' . $e->getMessage()]);
+        error_log("Erro ao buscar progresso: " . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Erro ao buscar progresso. Tente novamente.']);
     }
     
 } else {

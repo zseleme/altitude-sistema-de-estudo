@@ -19,11 +19,11 @@ jobs:
         id: target
         run: |
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "folder=/altitude.zaiden.eng.br/" >> $GITHUB_OUTPUT
+            echo "folder=/www/altitude.zaiden.eng.br" >> $GITHUB_OUTPUT
             echo "environment=Produção" >> $GITHUB_OUTPUT
             echo "color=green" >> $GITHUB_OUTPUT
           elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
-            echo "folder=/dev.seleme.pt" >> $GITHUB_OUTPUT
+            echo "folder=/www/altitude-dev.zaiden.eng.br" >> $GITHUB_OUTPUT
             echo "environment=Desenvolvimento" >> $GITHUB_OUTPUT
             echo "color=yellow" >> $GITHUB_OUTPUT
           fi
@@ -113,9 +113,9 @@ jobs:
           echo ""
           echo "🌐 Acesse:"
           if [ "${{ steps.target.outputs.environment }}" == "Produção" ]; then
-            echo "  • https://seleme.pt"
+            echo "  • https://altitude.zaiden.eng.br/"
           else
-            echo "  • https://dev.seleme.pt"
+            echo "  • https://altitude.dev.zaiden.eng.br/"
           fi
 
       - name: Notificar erro

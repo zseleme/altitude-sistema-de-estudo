@@ -4,6 +4,11 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
+require_once __DIR__ . '/csrf_helper.php';
+require_once __DIR__ . '/security_headers.php';
+
+// Apply security headers
+SecurityHeaders::apply();
 
 // Função para renderizar o layout base
 function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false) {
@@ -17,6 +22,9 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>' . htmlspecialchars($title) . ' - Altitude</title>
+    ' . CSRFHelper::getTokenMeta() . '
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script>
@@ -1034,6 +1042,65 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
                 window.pomodoroTimer.saveState();
             }
         }, 30000);
+
+        // CSRF Token Helper - Automatically include in all AJAX requests
+        (function() {
+            const csrfToken = document.querySelector(\'meta[name="csrf-token"]\')?.getAttribute(\'content\');
+
+            if (csrfToken) {
+                // Store token globally for easy access
+                window.csrfToken = csrfToken;
+
+                // Override fetch to automatically include CSRF token
+                const originalFetch = window.fetch;
+                window.fetch = function(url, options = {}) {
+                    options = options || {};
+
+                    // Only add CSRF for same-origin requests that modify data
+                    const method = (options.method || \'GET\').toUpperCase();
+                    if ([\'POST\', \'PUT\', \'DELETE\', \'PATCH\'].includes(method)) {
+                        // Add CSRF token to headers
+                        options.headers = options.headers || {};
+                        if (options.headers instanceof Headers) {
+                            options.headers.set(\'X-CSRF-Token\', csrfToken);
+                        } else {
+                            options.headers[\'X-CSRF-Token\'] = csrfToken;
+                        }
+
+                        // If sending FormData, append CSRF token
+                        if (options.body instanceof FormData) {
+                            options.body.append(\'csrf_token\', csrfToken);
+                        }
+                        // If sending JSON, include CSRF in body
+                        else if (options.headers[\'Content-Type\'] === \'application/json\' && typeof options.body === \'string\') {
+                            try {
+                                const data = JSON.parse(options.body);
+                                data.csrf_token = csrfToken;
+                                options.body = JSON.stringify(data);
+                            } catch(e) {
+                                // If parsing fails, add as header only
+                            }
+                        }
+                    }
+
+                    return originalFetch(url, options);
+                };
+
+                // Add CSRF token to all forms on submit
+                document.addEventListener(\'submit\', function(e) {
+                    const form = e.target;
+
+                    // Only add to forms without existing CSRF token
+                    if (!form.querySelector(\'input[name="csrf_token"]\')) {
+                        const input = document.createElement(\'input\');
+                        input.type = \'hidden\';
+                        input.name = \'csrf_token\';
+                        input.value = csrfToken;
+                        form.appendChild(input);
+                    }
+                });
+            }
+        })();
     </script>';
     } else {
         // Layout para páginas não logadas
@@ -1044,6 +1111,37 @@ function renderLayout($title, $content, $showSidebar = true, $isLoggedIn = false
         } else {
             echo $content;
         }
+    }
+
+    echo '</body>
+</html>';
+}
+
+/**
+ * Render simple layout (no sidebar) for login, register, password change pages
+ * @param string $title Page title
+ * @param callable|string $content Content to render (callback or string)
+ */
+function renderSimpleLayout($title, $content) {
+    echo '<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>' . htmlspecialchars($title) . ' - Altitude</title>
+    ' . CSRFHelper::getTokenMeta() . '
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-50">';
+
+    // Render content
+    if (is_callable($content)) {
+        $content();
+    } else {
+        echo $content;
     }
 
     echo '</body>

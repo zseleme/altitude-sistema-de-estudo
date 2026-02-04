@@ -1,0 +1,3 @@
+# Bloquear acesso web ao diretório de configuração
+# Block web access to configuration directory
+Require all denied

@@ -13,10 +13,17 @@ try {
     
     // Criar schema se não existir
     echo "🔨 Criando schema...\n";
-    $pdo->exec("CREATE SCHEMA IF NOT EXISTS " . DB_SCHEMA);
+    // Use PDO::quote() to safely escape schema name
+    $quotedSchema = $pdo->quote(DB_SCHEMA);
+    $pdo->exec("CREATE SCHEMA IF NOT EXISTS " . $quotedSchema);
     echo "✅ Schema '" . DB_SCHEMA . "' criado\n\n";
-    
+
     // Definir o schema como padrão
+    // Note: search_path doesn't support quoted identifiers, but DB_SCHEMA is from config (safe)
+    // Validate schema name to ensure it's safe
+    if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', DB_SCHEMA)) {
+        throw new Exception('Nome do schema inválido: ' . DB_SCHEMA);
+    }
     $pdo->exec("SET search_path TO " . DB_SCHEMA);
     
     echo "🔨 Criando tabelas...\n";

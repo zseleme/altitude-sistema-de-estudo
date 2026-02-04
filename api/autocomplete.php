@@ -9,7 +9,11 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/security_headers.php';
 requireLogin();
+
+// Apply minimal security headers for API
+SecurityHeaders::applyMinimal();
 
 header('Content-Type: application/json');
 
@@ -23,40 +27,41 @@ if (strlen($query) < 2) {
 try {
     $db = Database::getInstance();
     $searchTerm = '%' . $query . '%';
-    
+
     // Determinar operador LIKE baseado no tipo de banco
     $likeOp = $db->isPostgreSQL() ? 'ILIKE' : 'LIKE';
-    
+    $true = $db->getBoolTrue();
+
     // Buscar cursos
     $cursos = $db->fetchAll("
-        SELECT 
+        SELECT
             c.id,
             c.titulo,
             cat.nome as categoria_nome,
             'curso' as tipo
         FROM cursos c
         LEFT JOIN categorias cat ON c.categoria_id = cat.id
-        WHERE c.ativo = " . $db->getBoolTrue() . " 
+        WHERE c.ativo = ?
           AND c.titulo $likeOp ?
         ORDER BY c.titulo
         LIMIT 5
-    ", [$searchTerm]);
-    
+    ", [$true, $searchTerm]);
+
     // Buscar aulas
     $aulas = $db->fetchAll("
-        SELECT 
+        SELECT
             a.id,
             a.titulo,
             c.titulo as curso_titulo,
             'aula' as tipo
         FROM aulas a
         JOIN cursos c ON a.curso_id = c.id
-        WHERE a.ativo = " . $db->getBoolTrue() . "
-          AND c.ativo = " . $db->getBoolTrue() . "
+        WHERE a.ativo = ?
+          AND c.ativo = ?
           AND a.titulo $likeOp ?
         ORDER BY a.titulo
         LIMIT 5
-    ", [$searchTerm]);
+    ", [$true, $true, $searchTerm]);
     
     // Combinar resultados
     $results = [];
@@ -90,9 +95,10 @@ try {
     ]);
     
 } catch (Exception $e) {
+    error_log("Erro em autocomplete.php: " . $e->getMessage());
     echo json_encode([
         'success' => false,
-        'error' => $e->getMessage()
+        'error' => 'Erro ao buscar resultados. Tente novamente.'
     ]);
 }
 

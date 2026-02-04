@@ -7,6 +7,13 @@
 function autoInstallDatabase() {
     $configFile = __DIR__ . '/../config/database.php';
     $dbFile = __DIR__ . '/../config/estudos.db';
+    $installedFlagFile = __DIR__ . '/../config/.installed';
+
+    // Performance optimization: Check if installation is complete
+    // If flag file exists and both config and database exist, skip installation
+    if (file_exists($installedFlagFile) && file_exists($configFile) && file_exists($dbFile)) {
+        return; // Already installed, skip all checks
+    }
 
     // Se o arquivo de configuração não existe, criar do exemplo
     if (!file_exists($configFile)) {
@@ -29,6 +36,11 @@ function autoInstallDatabase() {
     } else {
         // Se o banco existe, verificar se as tabelas de inglês existem
         ensureEnglishTablesExist($dbFile);
+    }
+
+    // Create installation flag file to skip checks on subsequent loads
+    if (file_exists($configFile) && file_exists($dbFile)) {
+        file_put_contents($installedFlagFile, date('Y-m-d H:i:s'));
     }
 }
 
@@ -194,6 +206,7 @@ function createTables($pdo) {
             senha VARCHAR(255) NOT NULL,
             is_admin BOOLEAN DEFAULT FALSE,
             ativo BOOLEAN DEFAULT TRUE,
+            password_change_required BOOLEAN DEFAULT FALSE,
             data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ");
@@ -580,13 +593,13 @@ function createTables($pdo) {
 }
 
 function insertInitialData($pdo) {
-    // Inserir usuário admin
+    // Inserir usuário admin (com troca de senha obrigatória)
     $adminPassword = password_hash('admin123', PASSWORD_DEFAULT);
     $stmt = $pdo->prepare("
-        INSERT INTO usuarios (nome, email, senha, is_admin, ativo)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO usuarios (nome, email, senha, is_admin, ativo, password_change_required)
+        VALUES (?, ?, ?, ?, ?, ?)
     ");
-    $stmt->execute(['Administrador', 'admin@teste.com', $adminPassword, 1, 1]);
+    $stmt->execute(['Administrador', 'admin@teste.com', $adminPassword, 1, 1, 1]);
 
     // Inserir categorias
     $categorias = [
@@ -670,6 +683,28 @@ function runMigrations() {
         // Se não existe, adicionar a coluna
         if (!$hasTextoApoio) {
             $pdo->exec("ALTER TABLE simulado_questoes ADD COLUMN texto_apoio TEXT");
+        }
+
+        // Migração: Adicionar coluna password_change_required na tabela usuarios
+        $userTableCheck = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='usuarios'");
+        if ($userTableCheck->fetch()) {
+            $userQuery = $pdo->query("PRAGMA table_info(usuarios)");
+            $userColumns = $userQuery->fetchAll(PDO::FETCH_ASSOC);
+            $hasPasswordChangeRequired = false;
+
+            foreach ($userColumns as $column) {
+                if ($column['name'] === 'password_change_required') {
+                    $hasPasswordChangeRequired = true;
+                    break;
+                }
+            }
+
+            if (!$hasPasswordChangeRequired) {
+                $pdo->exec("ALTER TABLE usuarios ADD COLUMN password_change_required BOOLEAN DEFAULT 0");
+
+                // Marcar admin padrão como necessitando troca de senha
+                $pdo->exec("UPDATE usuarios SET password_change_required = 1 WHERE email = 'admin@teste.com'");
+            }
         }
 
     } catch (Exception $e) {

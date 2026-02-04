@@ -170,10 +170,36 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
             }
         } else {
             // Para PostgreSQL, criar dump SQL
-            $dumpFile = sys_get_temp_dir() . '/' . $filename . '.sql';
+            // Validate filename to prevent path traversal
+            $safeFilename = preg_replace('/[^a-zA-Z0-9_-]/', '', $filename);
+            if (empty($safeFilename)) {
+                $safeFilename = 'backup_' . time();
+            }
+
+            $tempDir = sys_get_temp_dir();
+            // Verify temp directory is safe
+            if (!is_dir($tempDir) || !is_writable($tempDir)) {
+                throw new Exception('Diretório temporário não está acessível');
+            }
+
+            $dumpFile = $tempDir . DIRECTORY_SEPARATOR . $safeFilename . '.sql';
+
+            // Use PGPASSFILE for password instead of environment variable (more secure)
+            $passFile = $tempDir . DIRECTORY_SEPARATOR . '.pgpass_' . uniqid();
+            $passContent = sprintf(
+                "%s:%s:%s:%s:%s",
+                DB_HOST,
+                DB_PORT,
+                DB_NAME,
+                DB_USER,
+                DB_PASS
+            );
+            file_put_contents($passFile, $passContent);
+            @chmod($passFile, 0600);
 
             $command = sprintf(
-                'pg_dump -h %s -p %s -U %s -d %s -n %s > %s 2>&1',
+                'PGPASSFILE=%s pg_dump -h %s -p %s -U %s -d %s -n %s > %s 2>&1',
+                escapeshellarg($passFile),
                 escapeshellarg(DB_HOST),
                 escapeshellarg(DB_PORT),
                 escapeshellarg(DB_USER),
@@ -182,10 +208,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
                 escapeshellarg($dumpFile)
             );
 
-            // Definir senha via variável de ambiente
-            putenv('PGPASSWORD=' . DB_PASS);
-
             exec($command, $output, $returnCode);
+
+            // Clean up password file immediately
+            if (file_exists($passFile)) {
+                unlink($passFile);
+            }
 
             if ($returnCode === 0 && file_exists($dumpFile)) {
                 // CRÍTICO: Limpar ABSOLUTAMENTE TUDO antes de enviar
@@ -380,18 +408,50 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 throw new Exception('O arquivo deve ter extensão .sql para PostgreSQL');
             }
 
-            $tempFile = sys_get_temp_dir() . '/' . basename($file['tmp_name']) . '.sql';
+            // Use secure temp file with random name
+            $tempDir = sys_get_temp_dir();
+            if (!is_dir($tempDir) || !is_writable($tempDir)) {
+                throw new Exception('Diretório temporário não está acessível');
+            }
+
+            $tempFile = $tempDir . DIRECTORY_SEPARATOR . 'restore_' . uniqid() . '.sql';
 
             if (!move_uploaded_file($file['tmp_name'], $tempFile)) {
                 throw new Exception('Erro ao processar arquivo de backup');
             }
 
-            // Limpar schema antes de restaurar
-            $db->execute("DROP SCHEMA IF EXISTS " . DB_SCHEMA . " CASCADE");
-            $db->execute("CREATE SCHEMA " . DB_SCHEMA);
+            // Validate file size (prevent huge uploads)
+            if (filesize($tempFile) > 100 * 1024 * 1024) { // 100MB max
+                unlink($tempFile);
+                throw new Exception('Arquivo muito grande. Máximo permitido: 100MB');
+            }
+
+            // Use prepared statements with PDO for schema operations
+            try {
+                $pdo = $db->getConnection();
+                $pdo->exec("DROP SCHEMA IF EXISTS " . $pdo->quote(DB_SCHEMA) . " CASCADE");
+                $pdo->exec("CREATE SCHEMA " . $pdo->quote(DB_SCHEMA));
+            } catch (Exception $e) {
+                unlink($tempFile);
+                throw new Exception('Erro ao preparar schema: ' . $e->getMessage());
+            }
+
+            // Use PGPASSFILE for password (more secure than environment variable)
+            $passFile = $tempDir . DIRECTORY_SEPARATOR . '.pgpass_' . uniqid();
+            $passContent = sprintf(
+                "%s:%s:%s:%s:%s",
+                DB_HOST,
+                DB_PORT,
+                DB_NAME,
+                DB_USER,
+                DB_PASS
+            );
+            file_put_contents($passFile, $passContent);
+            @chmod($passFile, 0600);
 
             $command = sprintf(
-                'psql -h %s -p %s -U %s -d %s < %s 2>&1',
+                'PGPASSFILE=%s psql -h %s -p %s -U %s -d %s < %s 2>&1',
+                escapeshellarg($passFile),
                 escapeshellarg(DB_HOST),
                 escapeshellarg(DB_PORT),
                 escapeshellarg(DB_USER),
@@ -399,10 +459,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 escapeshellarg($tempFile)
             );
 
-            putenv('PGPASSWORD=' . DB_PASS);
-
             exec($command, $output, $returnCode);
-            unlink($tempFile);
+
+            // Clean up files immediately
+            if (file_exists($passFile)) {
+                unlink($passFile);
+            }
+            if (file_exists($tempFile)) {
+                unlink($tempFile);
+            }
 
             if ($returnCode === 0) {
                 $success = 'Base de dados restaurada com sucesso!';

@@ -200,6 +200,69 @@ find . -name "*.php" -exec php -l {} \;
 - Secrets são criptografados no GitHub
 - Validação de sintaxe antes do deploy
 - Logs não expõem senhas
+- Chaves de API criptografadas com AES-256-CBC
+
+### 🔑 Configuração de Criptografia (OBRIGATÓRIO para Produção)
+
+O sistema utiliza criptografia AES-256-CBC para proteger chaves de API (OpenAI, Gemini, Groq, YouTube). Para produção, você **DEVE** configurar uma chave de criptografia forte:
+
+#### Opção 1: Variável de Ambiente (Recomendado)
+
+Adicione no arquivo `.htaccess` ou configuração do servidor:
+
+```apache
+# .htaccess (Apache)
+SetEnv ALTITUDE_ENCRYPTION_KEY "sua-chave-aleatoria-de-32-bytes-aqui-min-32-caracteres"
+```
+
+```nginx
+# nginx.conf
+fastcgi_param ALTITUDE_ENCRYPTION_KEY "sua-chave-aleatoria-de-32-bytes-aqui-min-32-caracteres";
+```
+
+**Gerar chave segura:**
+```bash
+# Linux/Mac
+openssl rand -base64 32
+
+# PHP
+php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
+```
+
+#### Opção 2: Arquivo de Configuração
+
+Se não puder usar variáveis de ambiente, edite `includes/encryption_helper.php` após o deploy:
+
+```php
+// Linha ~19
+private static function getEncryptionKey() {
+    // Substitua pela sua chave única gerada
+    return 'SUA_CHAVE_UNICA_DE_PELO_MENOS_32_CARACTERES_AQUI';
+}
+```
+
+**⚠️ IMPORTANTE:**
+- Use uma chave **diferente** da chave do código-fonte
+- Mínimo 32 caracteres
+- Caracteres aleatórios (letras, números, símbolos)
+- **Nunca** commite a chave no Git
+- Guarde a chave em local seguro (ex: gerenciador de senhas)
+- Se perder a chave, **todas as API keys criptografadas serão perdidas**
+
+#### Migração de Chaves Existentes
+
+Se você já tem API keys configuradas antes da criptografia, execute após configurar a chave:
+
+```bash
+# Acesse via navegador (somente admin)
+https://seu-site.com/admin/migrate_encrypt_keys.php
+```
+
+Esse script:
+- Detecta chaves não criptografadas
+- Criptografa automaticamente
+- Exibe relatório de migração
+- **Execute apenas uma vez**
 
 ### ⚠️ Importante
 
@@ -208,16 +271,20 @@ find . -name "*.php" -exec php -l {} \;
    - Chaves de API
    - Arquivos `.env`
    - Banco de dados
+   - **Chave de criptografia**
 
 2. **No servidor, configure:**
    - Crie `config/database.php` manualmente
-   - Crie `config/openai.php` se usar IA
+   - Configure a chave de criptografia (variável de ambiente ou arquivo)
+   - Execute `admin/migrate_encrypt_keys.php` para migrar chaves existentes
    - Configure permissões corretas (755 para pastas, 644 para arquivos)
 
 3. **Após primeiro deploy:**
    - Acesse o site e siga a instalação automática
    - Login: admin@teste.com / admin123
-   - **Altere a senha imediatamente**
+   - **Altere a senha imediatamente** (obrigatório na primeira vez)
+   - Configure a chave de criptografia
+   - Execute migração de chaves se necessário
 
 ## 📋 Checklist Pós-Deploy
 

@@ -1,6 +1,63 @@
 <?php
+// Configurações de segurança da sessão
 if (session_status() === PHP_SESSION_NONE) {
+    // Configure session security settings before starting
+    ini_set('session.cookie_httponly', '1');  // Prevent JavaScript access to session cookie
+    ini_set('session.use_only_cookies', '1'); // Only use cookies for session ID
+    ini_set('session.cookie_samesite', 'Strict'); // CSRF protection
+    ini_set('session.use_strict_mode', '1');   // Reject uninitialized session IDs
+    ini_set('session.sid_length', '48');       // Longer session ID
+    ini_set('session.sid_bits_per_character', '6'); // More entropy
+
+    // Enable secure cookie if using HTTPS
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+               || $_SERVER['SERVER_PORT'] == 443
+               || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
+    if ($isHttps) {
+        ini_set('session.cookie_secure', '1'); // Only send cookie over HTTPS
+    }
+
+    // Session timeout: 2 hours
+    ini_set('session.gc_maxlifetime', '7200');
+    ini_set('session.cookie_lifetime', '7200');
+
     session_start();
+
+    // Session hijacking protection - regenerate ID periodically
+    if (!isset($_SESSION['created'])) {
+        $_SESSION['created'] = time();
+    } elseif (time() - $_SESSION['created'] > 1800) {
+        // Regenerate session ID every 30 minutes
+        session_regenerate_id(true);
+        $_SESSION['created'] = time();
+    }
+
+    // Session fixation protection - validate session
+    if (isset($_SESSION['user_id'])) {
+        // Check if user agent changed (possible session hijacking)
+        $currentUserAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+        if (!isset($_SESSION['user_agent'])) {
+            $_SESSION['user_agent'] = $currentUserAgent;
+        } elseif ($_SESSION['user_agent'] !== $currentUserAgent) {
+            // User agent changed - possible session hijacking
+            session_unset();
+            session_destroy();
+            session_start();
+        }
+
+        // Check if IP address changed (optional - may cause issues with mobile users)
+        // Uncomment if needed:
+        // $currentIP = $_SERVER['REMOTE_ADDR'] ?? '';
+        // if (!isset($_SESSION['user_ip'])) {
+        //     $_SESSION['user_ip'] = $currentIP;
+        // } elseif ($_SESSION['user_ip'] !== $currentIP) {
+        //     session_unset();
+        //     session_destroy();
+        //     session_start();
+        // }
+    }
 }
 
 // Auto-instalação do banco de dados se necessário
@@ -25,6 +82,13 @@ function requireLogin() {
         header('Location: /login.php');
         exit;
     }
+
+    // Check if password change is required (skip if already on change password page)
+    $currentPage = basename($_SERVER['PHP_SELF']);
+    if (($currentPage !== 'alterar_senha.php') && ($_SESSION['password_change_required'] ?? false)) {
+        header('Location: /alterar_senha.php?required=1');
+        exit;
+    }
 }
 
 function requireAdmin() {
@@ -43,10 +107,19 @@ function login($email, $password) {
     );
     
     if ($user && password_verify($password, $user['senha'])) {
+        // Regenerate session ID to prevent session fixation attacks
+        session_regenerate_id(true);
+
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_name'] = $user['nome'];
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['is_admin'] = $user['is_admin'] ?? false;
+        $_SESSION['password_change_required'] = $user['password_change_required'] ?? false;
+
+        // Set security tracking variables
+        $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $_SESSION['created'] = time();
+
         return true;
     }
     
@@ -54,6 +127,19 @@ function login($email, $password) {
 }
 
 function logout() {
+    // Clear all session variables
+    $_SESSION = array();
+
+    // Delete session cookie
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
+        );
+    }
+
+    // Destroy the session
     session_destroy();
     header('Location: /');
     exit;
@@ -374,46 +460,52 @@ function getEstatisticasGerais() {
 
 function getEstatisticasUsuario($usuarioId) {
     $db = Database::getInstance();
-    
+
     try {
         // Usar valor booleano compatível com o banco de dados
         $true = $db->getBoolTrue();
-        
+
         // Cursos em que o usuário está inscrito (todos os cursos ativos)
-        $cursosInscritos = $db->fetchOne("SELECT COUNT(*) as total FROM cursos WHERE ativo = $true")['total'] ?? 0;
-        
+        $cursosInscritos = $db->fetchOne(
+            "SELECT COUNT(*) as total FROM cursos WHERE ativo = ?",
+            [$true]
+        )['total'] ?? 0;
+
         // Aulas concluídas pelo usuário
         $aulasConcluidas = $db->fetchOne(
-            "SELECT COUNT(*) as total FROM progresso_aulas WHERE usuario_id = ? AND concluida = $true",
-            [$usuarioId]
+            "SELECT COUNT(*) as total FROM progresso_aulas WHERE usuario_id = ? AND concluida = ?",
+            [$usuarioId, $true]
         )['total'] ?? 0;
-        
+
         // Total de aulas disponíveis
-        $totalAulas = $db->fetchOne("SELECT COUNT(*) as total FROM aulas WHERE ativo = $true")['total'] ?? 0;
-        
+        $totalAulas = $db->fetchOne(
+            "SELECT COUNT(*) as total FROM aulas WHERE ativo = ?",
+            [$true]
+        )['total'] ?? 0;
+
         // Tempo total estudado (em minutos)
         $tempoEstudado = 0;
         if ($aulasConcluidas > 0) {
             $aulasComDuracao = $db->fetchAll(
-                "SELECT a.duracao_minutos 
-                 FROM progresso_aulas pa 
-                 JOIN aulas a ON pa.aula_id = a.id 
-                 WHERE pa.usuario_id = ? AND pa.concluida = $true AND a.ativo = $true",
-                [$usuarioId]
+                "SELECT a.duracao_minutos
+                 FROM progresso_aulas pa
+                 JOIN aulas a ON pa.aula_id = a.id
+                 WHERE pa.usuario_id = ? AND pa.concluida = ? AND a.ativo = ?",
+                [$usuarioId, $true, $true]
             );
-            
+
             foreach ($aulasComDuracao as $aula) {
                 $tempoEstudado += $aula['duracao_minutos'] ?? 30;
             }
         }
-        
+
         // Cursos com progresso
         $cursosComProgresso = $db->fetchOne(
-            "SELECT COUNT(DISTINCT a.curso_id) as total 
-             FROM progresso_aulas pa 
-             JOIN aulas a ON pa.aula_id = a.id 
-             WHERE pa.usuario_id = ? AND pa.concluida = $true AND a.ativo = $true",
-            [$usuarioId]
+            "SELECT COUNT(DISTINCT a.curso_id) as total
+             FROM progresso_aulas pa
+             JOIN aulas a ON pa.aula_id = a.id
+             WHERE pa.usuario_id = ? AND pa.concluida = ? AND a.ativo = ?",
+            [$usuarioId, $true, $true]
         )['total'] ?? 0;
         
         // Streak de dias consecutivos (simplificado - dias com aulas concluídas)

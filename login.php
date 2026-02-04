@@ -3,22 +3,31 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/csrf_helper.php';
 
 $error = '';
 
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    
-    if (empty($email) || empty($password)) {
-        $error = 'Email e senha são obrigatórios';
-    } else {
-        if (login($email, $password)) {
-            header('Location: /home.php');
-            exit;
+    // Validate CSRF token
+    try {
+        CSRFHelper::validateRequest(false);
+
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+
+        if (empty($email) || empty($password)) {
+            $error = 'Email e senha são obrigatórios';
         } else {
-            $error = 'Email ou senha incorretos';
+            if (login($email, $password)) {
+                header('Location: /home.php');
+                exit;
+            } else {
+                $error = 'Email ou senha incorretos';
+            }
         }
+    } catch (Exception $e) {
+        $error = 'Requisição inválida. Tente novamente.';
+        error_log("CSRF validation failed on login: " . $e->getMessage());
     }
 }
 
@@ -49,6 +58,7 @@ $content = '
                 </div>' : '') . '
                 
                 <form method="POST" class="space-y-6">
+                    ' . CSRFHelper::getTokenField() . '
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">
                             <i class="fas fa-envelope mr-2 text-gray-400"></i>

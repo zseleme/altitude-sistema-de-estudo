@@ -1,6 +1,13 @@
 <?php
 session_start();
 require_once '../includes/auth.php';
+require_once '../includes/csrf_helper.php';
+require_once '../includes/error_helper.php';
+require_once '../includes/input_validator.php';
+require_once '../includes/security_headers.php';
+
+// Apply minimal security headers for API
+SecurityHeaders::applyMinimal();
 
 header('Content-Type: application/json');
 
@@ -16,6 +23,12 @@ $userId = getUserId(); // ID do usuário logado
 
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
+
+// Validar CSRF para operações que modificam dados
+$writeActions = ['criar', 'atualizar', 'deletar', 'iniciar', 'responder', 'finalizar', 'salvar_questao'];
+if (in_array($action, $writeActions)) {
+    CSRFHelper::validateRequest();
+}
 
 try {
     switch($action) {
@@ -46,14 +59,29 @@ try {
 
             $data = json_decode(file_get_contents('php://input'), true);
 
+            // Validar entrada
+            $validation = InputValidator::validateSimuladoData($data);
+
+            if (!$validation['valid']) {
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Dados inválidos',
+                    'errors' => $validation['errors']
+                ]);
+                exit;
+            }
+
+            $validData = $validation['data'];
+
             $query = "INSERT INTO simulados (titulo, descricao, disciplina, tempo_limite)
                       VALUES (:titulo, :descricao, :disciplina, :tempo_limite)";
 
             $stmt = $db->prepare($query);
-            $stmt->bindParam(':titulo', $data['titulo']);
-            $stmt->bindParam(':descricao', $data['descricao']);
-            $stmt->bindParam(':disciplina', $data['disciplina']);
-            $stmt->bindParam(':tempo_limite', $data['tempo_limite']);
+            $stmt->bindParam(':titulo', $validData['titulo']);
+            $stmt->bindParam(':descricao', $validData['descricao']);
+            $stmt->bindParam(':disciplina', $validData['disciplina']);
+            $stmt->bindParam(':tempo_limite', $validData['tempo_limite']);
 
             if ($stmt->execute()) {
                 echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
@@ -356,6 +384,5 @@ try {
     }
 
 } catch(Exception $e) {
-    http_response_code(500);
-    echo json_encode(['error' => $e->getMessage()]);
+    ErrorHelper::sendJsonError($e);
 }

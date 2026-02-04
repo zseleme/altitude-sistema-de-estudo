@@ -251,12 +251,43 @@ $db->getBoolFalse();  // FALSE ou 0
 
 ## 🔐 Segurança
 
-- ✅ **Autenticação**: Sistema de sessões seguro
-- ✅ **Senhas**: Hash com `password_hash()` (bcrypt)
+- ✅ **Autenticação**: Sistema de sessões seguro com regeneração periódica
+- ✅ **Senhas**: Hash com `password_hash()` (bcrypt), troca obrigatória para senha padrão
 - ✅ **SQL Injection**: Prepared statements (PDO)
 - ✅ **XSS**: Sanitização com `htmlspecialchars()`
-- ✅ **CSRF**: Validação de origem de requisições
+- ✅ **CSRF**: Tokens únicos por sessão, validação automática em APIs
 - ✅ **Controle de Acesso**: `requireLogin()` e `requireAdmin()`
+- ✅ **Criptografia**: AES-256-CBC para chaves de API (OpenAI, Gemini, Groq, YouTube)
+- ✅ **Rate Limiting**: Proteção contra abuso de APIs de IA (30/hora, 5/minuto)
+- ✅ **Security Headers**: CSP, X-Frame-Options, HSTS, X-Content-Type-Options
+- ✅ **Input Validation**: Validação de comprimento, tipo e formato de dados
+
+### 🔑 Configuração de Criptografia
+
+Para proteger chaves de API em produção, configure uma chave de criptografia forte:
+
+**Gerar chave:**
+```bash
+# Linux/Mac/Windows com Git Bash
+openssl rand -base64 32
+
+# Ou via PHP
+php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
+```
+
+**Configurar:**
+```apache
+# .htaccess ou configuração do servidor
+SetEnv ALTITUDE_ENCRYPTION_KEY "sua-chave-de-32-caracteres-aqui"
+```
+
+**⚠️ Importante:**
+- Use chave única de no mínimo 32 caracteres
+- Nunca commite a chave no repositório
+- Guarde em local seguro (gerenciador de senhas)
+- Se perder a chave, API keys criptografadas serão inacessíveis
+
+Para mais detalhes, veja [FTP_DEPLOY.md](.github/FTP_DEPLOY.md#-configuração-de-criptografia-obrigatório-para-produção).
 
 ## 🚀 Deploy
 

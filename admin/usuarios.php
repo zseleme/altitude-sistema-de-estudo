@@ -3,75 +3,93 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
 requireAdmin();
 
 $db = Database::getInstance();
 $success = false;
 $error = '';
 
+// Handle POST requests
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nome = trim($_POST['nome'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $confirmPassword = $_POST['confirm_password'] ?? '';
-    $isAdmin = isset($_POST['is_admin']) ? true : false;
-    
-    if (empty($nome) || empty($email) || empty($password)) {
-        $error = 'Nome, email e senha são obrigatórios';
-    } elseif ($password !== $confirmPassword) {
-        $error = 'As senhas não coincidem';
-    } elseif (strlen($password) < 6) {
-        $error = 'A senha deve ter pelo menos 6 caracteres';
-    } else {
-        // Verificar se email já existe
-        $existingUser = $db->fetchOne("SELECT id FROM usuarios WHERE email = ?", [$email]);
-        if ($existingUser) {
-            $error = 'Este email já está cadastrado';
-        } else {
+    $action = $_POST['action'] ?? 'create';
+
+    // Handle delete action
+    if ($action === 'delete') {
+        // Validate CSRF token
+        CSRFHelper::validateRequest(false);
+
+        $usuarioId = (int)($_POST['usuario_id'] ?? 0);
+        if ($usuarioId == $_SESSION['user_id']) {
+            $error = 'Você não pode excluir seu próprio usuário';
+        } elseif ($usuarioId > 0) {
             try {
-                $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-                $db->execute(
-                    "INSERT INTO usuarios (nome, email, senha, is_admin, ativo) VALUES (?, ?, ?, ?, TRUE)",
-                    [$nome, $email, $hashedPassword, $isAdmin]
-                );
-                $success = true;
+                $db->execute("UPDATE usuarios SET ativo = FALSE WHERE id = ?", [$usuarioId]);
+                $success = 'Usuário excluído com sucesso!';
             } catch (Exception $e) {
-                $error = 'Erro ao cadastrar usuário: ' . $e->getMessage();
+                $error = 'Erro ao excluir usuário: ' . $e->getMessage();
             }
+        } else {
+            $error = 'ID de usuário inválido';
         }
     }
-}
+    // Handle toggle admin action
+    elseif ($action === 'toggle_admin') {
+        // Validate CSRF token
+        CSRFHelper::validateRequest(false);
 
-// Processar exclusão
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $usuarioId = (int)$_GET['delete'];
-    if ($usuarioId == $_SESSION['user_id']) {
-        $error = 'Você não pode excluir seu próprio usuário';
-    } else {
-        try {
-            $db->execute("UPDATE usuarios SET ativo = FALSE WHERE id = ?", [$usuarioId]);
-            $success = 'Usuário excluído com sucesso!';
-        } catch (Exception $e) {
-            $error = 'Erro ao excluir usuário: ' . $e->getMessage();
+        $usuarioId = (int)($_POST['usuario_id'] ?? 0);
+        if ($usuarioId == $_SESSION['user_id']) {
+            $error = 'Você não pode alterar suas próprias permissões';
+        } elseif ($usuarioId > 0) {
+            try {
+                $usuario = $db->fetchOne("SELECT is_admin FROM usuarios WHERE id = ?", [$usuarioId]);
+                if ($usuario) {
+                    $newAdminStatus = $usuario['is_admin'] ? 0 : 1;
+                    $db->execute("UPDATE usuarios SET is_admin = ? WHERE id = ?", [$newAdminStatus, $usuarioId]);
+                    $success = 'Permissões do usuário atualizadas com sucesso!';
+                }
+            } catch (Exception $e) {
+                $error = 'Erro ao atualizar permissões: ' . $e->getMessage();
+            }
+        } else {
+            $error = 'ID de usuário inválido';
         }
     }
-}
+    // Handle create user action
+    else {
+        // Validate CSRF token
+        CSRFHelper::validateRequest(false);
 
-// Processar toggle admin
-if (isset($_GET['toggle_admin']) && is_numeric($_GET['toggle_admin'])) {
-    $usuarioId = (int)$_GET['toggle_admin'];
-    if ($usuarioId == $_SESSION['user_id']) {
-        $error = 'Você não pode alterar suas próprias permissões';
-    } else {
-        try {
-            $usuario = $db->fetchOne("SELECT is_admin FROM usuarios WHERE id = ?", [$usuarioId]);
-            if ($usuario) {
-                $newAdminStatus = $usuario['is_admin'] ? 0 : 1;
-                $db->execute("UPDATE usuarios SET is_admin = ? WHERE id = ?", [$newAdminStatus, $usuarioId]);
-                $success = 'Permissões do usuário atualizadas com sucesso!';
+        $nome = trim($_POST['nome'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
+        $isAdmin = isset($_POST['is_admin']) ? true : false;
+
+        if (empty($nome) || empty($email) || empty($password)) {
+            $error = 'Nome, email e senha são obrigatórios';
+        } elseif ($password !== $confirmPassword) {
+            $error = 'As senhas não coincidem';
+        } elseif (strlen($password) < 12) {
+            $error = 'A senha deve ter pelo menos 12 caracteres';
+        } else {
+            // Verificar se email já existe
+            $existingUser = $db->fetchOne("SELECT id FROM usuarios WHERE email = ?", [$email]);
+            if ($existingUser) {
+                $error = 'Este email já está cadastrado';
+            } else {
+                try {
+                    $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                    $db->execute(
+                        "INSERT INTO usuarios (nome, email, senha, is_admin, ativo) VALUES (?, ?, ?, ?, TRUE)",
+                        [$nome, $email, $hashedPassword, $isAdmin]
+                    );
+                    $success = true;
+                } catch (Exception $e) {
+                    $error = 'Erro ao cadastrar usuário: ' . $e->getMessage();
+                }
             }
-        } catch (Exception $e) {
-            $error = 'Erro ao atualizar permissões: ' . $e->getMessage();
         }
     }
 }
@@ -144,51 +162,52 @@ $content = '
                     </h2>
                     
                     <form method="POST" class="space-y-4">
+                        ' . CSRFHelper::getTokenField() . '
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     Nome Completo
                                 </label>
-                                <input type="text" 
-                                       name="nome" 
+                                <input type="text"
+                                       name="nome"
                                        required
                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                        placeholder="Digite o nome completo">
                     </div>
-                    
+
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     Email
                                 </label>
-                                <input type="email" 
-                                       name="email" 
+                                <input type="email"
+                                       name="email"
                                        required
                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                        placeholder="Digite o email">
                         </div>
                     </div>
-                    
+
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     Senha
                                 </label>
-                                <input type="password" 
-                                       name="password" 
+                                <input type="password"
+                                       name="password"
                                        required
-                                       minlength="6"
+                                       minlength="12"
                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                                       placeholder="Mínimo 6 caracteres">
+                                       placeholder="Mínimo 12 caracteres">
                     </div>
-                    
+
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     Confirmar Senha
                                 </label>
-                                <input type="password" 
-                                       name="confirm_password" 
+                                <input type="password"
+                                       name="confirm_password"
                                        required
-                                       minlength="6"
+                                       minlength="12"
                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                        placeholder="Confirme a senha">
                             </div>
@@ -293,16 +312,22 @@ $content = '
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div class="flex items-center space-x-2">
                                             ' . (!$isCurrentUser ? '
-                                            <a href="?toggle_admin=' . $usuario['id'] . '" 
-                                               onclick="return confirm(\'Tem certeza que deseja alterar as permissões deste usuário?\')"
-                                               class="text-yellow-600 hover:text-yellow-900 transition-colors" title="Alterar Permissões">
-                                                <i class="fas fa-user-shield"></i>
-                                            </a>
-                                            <a href="?delete=' . $usuario['id'] . '" 
-                                               onclick="return confirm(\'Tem certeza que deseja excluir este usuário?\')"
-                                               class="text-red-600 hover:text-red-900 transition-colors" title="Excluir">
-                                                            <i class="fas fa-trash"></i>
-                                            </a>' : '
+                                            <form method="POST" style="display: inline;" onsubmit="return confirm(\'Tem certeza que deseja alterar as permissões deste usuário?\')">
+                                                <input type="hidden" name="action" value="toggle_admin">
+                                                <input type="hidden" name="usuario_id" value="' . $usuario['id'] . '">
+                                                ' . CSRFHelper::getTokenField() . '
+                                                <button type="submit" class="text-yellow-600 hover:text-yellow-900 transition-colors" title="Alterar Permissões">
+                                                    <i class="fas fa-user-shield"></i>
+                                                </button>
+                                            </form>
+                                            <form method="POST" style="display: inline;" onsubmit="return confirm(\'Tem certeza que deseja excluir este usuário?\')">
+                                                <input type="hidden" name="action" value="delete">
+                                                <input type="hidden" name="usuario_id" value="' . $usuario['id'] . '">
+                                                ' . CSRFHelper::getTokenField() . '
+                                                <button type="submit" class="text-red-600 hover:text-red-900 transition-colors" title="Excluir">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>' : '
                                             <span class="text-gray-400 text-xs">Usuário atual</span>') . '
                                                     </div>
                                                 </td>

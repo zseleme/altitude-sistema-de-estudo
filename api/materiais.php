@@ -3,6 +3,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
+require_once __DIR__ . '/../includes/error_helper.php';
 requireLogin();
 
 header('Content-Type: application/json');
@@ -10,6 +12,8 @@ header('Content-Type: application/json');
 $db = Database::getInstance();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Validar CSRF token
+    CSRFHelper::validateRequest();
     $aulaId = (int)($_POST['aula_id'] ?? 0);
     $titulo = trim($_POST['titulo'] ?? '');
     $descricao = trim($_POST['descricao'] ?? '');
@@ -42,21 +46,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => 'Erro ao adicionar material: ' . $e->getMessage()]);
+        error_log("Erro ao adicionar material: " . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Erro ao adicionar material. Tente novamente.']);
     }
     
 } elseif ($_SERVER['REQUEST_METHOD'] === 'PUT') {
-    // Atualizar material
-    parse_str(file_get_contents('php://input'), $_PUT);
-    
-    $materialId = (int)($_PUT['id'] ?? 0);
-    $titulo = trim($_PUT['titulo'] ?? '');
-    $descricao = trim($_PUT['descricao'] ?? '');
-    $tipo = $_PUT['tipo'] ?? 'outro';
-    $urlArquivo = trim($_PUT['url_arquivo'] ?? '');
-    $nomeArquivo = trim($_PUT['nome_arquivo'] ?? '');
-    $tamanhoArquivo = (int)($_PUT['tamanho_arquivo'] ?? 0);
-    $ordem = (int)($_PUT['ordem'] ?? 1);
+    // Validar CSRF token
+    CSRFHelper::validateRequest();
+
+    // Atualizar material - usar JSON decode em vez de parse_str
+    $putData = json_decode(file_get_contents('php://input'), true);
+
+    if (!is_array($putData)) {
+        echo json_encode(['success' => false, 'message' => 'Dados inválidos']);
+        exit;
+    }
+
+    $materialId = (int)($putData['id'] ?? 0);
+    $titulo = trim($putData['titulo'] ?? '');
+    $descricao = trim($putData['descricao'] ?? '');
+    $tipo = $putData['tipo'] ?? 'outro';
+    $urlArquivo = trim($putData['url_arquivo'] ?? '');
+    $nomeArquivo = trim($putData['nome_arquivo'] ?? '');
+    $tamanhoArquivo = (int)($putData['tamanho_arquivo'] ?? 0);
+    $ordem = (int)($putData['ordem'] ?? 1);
     
     if (!$materialId || !$titulo) {
         echo json_encode(['success' => false, 'message' => 'ID e título são obrigatórios']);
@@ -80,10 +93,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => 'Erro ao atualizar material: ' . $e->getMessage()]);
+        error_log("Erro ao atualizar material: " . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Erro ao atualizar material. Tente novamente.']);
     }
     
 } elseif ($_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    // Validar CSRF token
+    CSRFHelper::validateRequest();
+
     $materialId = (int)($_GET['id'] ?? 0);
     
     if (!$materialId) {
@@ -105,7 +122,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => 'Erro ao remover material: ' . $e->getMessage()]);
+        error_log("Erro ao remover material: " . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Erro ao remover material. Tente novamente.']);
     }
     
 } elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -128,7 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => 'Erro ao buscar materiais: ' . $e->getMessage()]);
+        error_log("Erro ao buscar materiais: " . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Erro ao buscar materiais. Tente novamente.']);
     }
     
 } else {

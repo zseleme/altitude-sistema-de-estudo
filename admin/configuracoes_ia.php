@@ -3,6 +3,9 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
+require_once __DIR__ . '/../includes/encryption_helper.php';
+require_once __DIR__ . '/../includes/input_validator.php';
 requireAdmin();
 
 $db = Database::getInstance();
@@ -11,37 +14,75 @@ $error = '';
 
 // Processar salvamento
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $provider = $_POST['ai_provider'] ?? 'gemini';
-
     try {
-        $db->beginTransaction();
+        // Validar CSRF token
+        CSRFHelper::validateRequest(false);
 
-        // Atualizar todas as configurações
-        $configs = [
-            'ai_provider' => $provider,
-            'openai_api_key' => trim($_POST['openai_api_key'] ?? ''),
-            'openai_model' => trim($_POST['openai_model'] ?? 'gpt-4o-mini'),
-            'gemini_api_key' => trim($_POST['gemini_api_key'] ?? ''),
-            'gemini_model' => trim($_POST['gemini_model'] ?? 'gemini-2.5-flash'),
-            'groq_api_key' => trim($_POST['groq_api_key'] ?? ''),
-            'groq_model' => trim($_POST['groq_model'] ?? 'llama-3.1-8b-instant'),
-            'youtube_api_key' => trim($_POST['youtube_api_key'] ?? ''),
-            'ai_temperature' => trim($_POST['ai_temperature'] ?? '0.3'),
-            'ai_max_tokens' => trim($_POST['ai_max_tokens'] ?? '4000')
-        ];
+        $provider = $_POST['ai_provider'] ?? 'gemini';
+
+        // Validar dados de entrada
+        $validation = InputValidator::validateAIConfigData($_POST);
+
+        if (!$validation['valid']) {
+            $error = 'Dados inválidos: ' . implode(', ', $validation['errors']);
+        } else {
+            $db->beginTransaction();
+
+            // Atualizar todas as configurações
+            $configs = [
+                'ai_provider' => $provider,
+                'openai_api_key' => trim($_POST['openai_api_key'] ?? ''),
+                'openai_model' => trim($_POST['openai_model'] ?? 'gpt-4o-mini'),
+                'gemini_api_key' => trim($_POST['gemini_api_key'] ?? ''),
+                'gemini_model' => trim($_POST['gemini_model'] ?? 'gemini-2.5-flash'),
+                'groq_api_key' => trim($_POST['groq_api_key'] ?? ''),
+                'groq_model' => trim($_POST['groq_model'] ?? 'llama-3.1-8b-instant'),
+                'youtube_api_key' => trim($_POST['youtube_api_key'] ?? ''),
+                'ai_temperature' => trim($_POST['ai_temperature'] ?? '0.3'),
+                'ai_max_tokens' => trim($_POST['ai_max_tokens'] ?? '4000')
+            ];
+
+        // Encrypt API keys before saving
+        $keysToEncrypt = ['openai_api_key', 'gemini_api_key', 'groq_api_key', 'youtube_api_key'];
 
         foreach ($configs as $chave => $valor) {
-            $db->execute(
-                "UPDATE configuracoes SET valor = ?, data_atualizacao = CURRENT_TIMESTAMP WHERE chave = ?",
-                [$valor, $chave]
-            );
+            // Pular API keys vazias para não sobrescrever valores existentes
+            if (in_array($chave, $keysToEncrypt) && empty($valor)) {
+                continue;
+            }
+
+            // Encrypt API keys
+            if (in_array($chave, $keysToEncrypt) && !empty($valor)) {
+                $valor = EncryptionHelper::encryptIfNeeded($valor);
+            }
+
+            // Verificar se o registro existe
+            $exists = $db->fetchOne("SELECT id, valor FROM configuracoes WHERE chave = ?", [$chave]);
+
+            if ($exists) {
+                // UPDATE se existe
+                $db->execute(
+                    "UPDATE configuracoes SET valor = ?, data_atualizacao = CURRENT_TIMESTAMP WHERE chave = ?",
+                    [$valor, $chave]
+                );
+            } else {
+                // INSERT se não existe
+                $db->execute(
+                    "INSERT INTO configuracoes (chave, valor, descricao, tipo, data_criacao, data_atualizacao) VALUES (?, ?, '', 'text', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                    [$chave, $valor]
+                );
+            }
         }
 
-        $db->commit();
-        $success = 'Configurações salvas com sucesso!';
-
+            $db->commit();
+            $success = 'Configurações salvas com sucesso!';
+        }
     } catch (Exception $e) {
-        $db->rollback();
+        try {
+            $db->rollback();
+        } catch (Exception $rollbackError) {
+            // Ignora erro de rollback se não houver transação ativa
+        }
         $error = 'Erro ao salvar configurações: ' . $e->getMessage();
     }
 }
@@ -49,8 +90,26 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
 // Buscar configurações atuais
 $configsRaw = $db->fetchAll("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'ai_%' OR chave LIKE '%_api_key' OR chave LIKE '%_model'");
 $configs = [];
+$keysToDecrypt = ['openai_api_key', 'gemini_api_key', 'groq_api_key', 'youtube_api_key'];
+
 foreach ($configsRaw as $config) {
-    $configs[$config['chave']] = $config['valor'];
+    $chave = $config['chave'];
+    $valor = $config['valor'];
+
+    // Decrypt API keys for display
+    if (in_array($chave, $keysToDecrypt) && !empty($valor)) {
+        try {
+            $valorDecrypt = EncryptionHelper::decrypt($valor);
+            // Se descriptografia falhar (retornar vazio/falso), manter o valor original
+            if ($valorDecrypt !== false && $valorDecrypt !== '') {
+                $valor = $valorDecrypt;
+            }
+        } catch (Exception $e) {
+            // Manter valor original se descriptografia falhar
+        }
+    }
+
+    $configs[$chave] = $valor;
 }
 
 // Verificar se tem YouTube API Key configurada
@@ -190,6 +249,7 @@ $content = '
 
                 <!-- Configuration Form -->
                 <form method="POST" class="space-y-6">
+                    <?php echo CSRFHelper::getTokenField(); ?>
                     <!-- Provider Selection -->
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <h2 class="text-xl font-semibold text-gray-900 mb-4">
