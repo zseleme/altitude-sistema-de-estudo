@@ -3,11 +3,13 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/csrf_helper.php';
 
 $error = '';
 $success = '';
 
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    CSRFHelper::validateRequest(false);
     $nome = trim($_POST['nome'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -75,6 +77,7 @@ $content = '
                 </div>' : '') . '
                 
                 <form method="POST" class="space-y-6">
+                    ' . CSRFHelper::getTokenField() . '
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">
                             <i class="fas fa-user mr-2 text-gray-400"></i>

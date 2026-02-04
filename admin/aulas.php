@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
 requireAdmin();
 
 $db = Database::getInstance();
@@ -30,7 +31,8 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
 }
 
 // Processar formulário (criar ou editar)
-if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['delete_id'])) {
+    CSRFHelper::validateRequest(false);
     $titulo = trim($_POST['titulo'] ?? '');
     $descricao = trim($_POST['descricao'] ?? '');
     $urlVideo = trim($_POST['url_video'] ?? '');
@@ -107,9 +109,10 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
     }
 }
 
-// Processar exclusão
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $aulaId = (int)$_GET['delete'];
+// Processar exclusão (POST com CSRF)
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && is_numeric($_POST['delete_id'])) {
+    CSRFHelper::validateRequest(false);
+    $aulaId = (int)$_POST['delete_id'];
     try {
         $db->execute("UPDATE aulas SET ativo = FALSE WHERE id = ?", [$aulaId]);
         $success = 'Aula excluída com sucesso!';
@@ -332,6 +335,7 @@ $content = '
                     </h2>
                     
                     <form method="POST" class="space-y-4">
+                        ' . CSRFHelper::getTokenField() . '
                         ' . ($editingAula ? '<input type="hidden" name="aula_id" value="' . $editingAula['id'] . '">' : '') . '
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -681,11 +685,13 @@ $content = '
                                                class="text-yellow-600 hover:text-yellow-900 transition-colors" title="Editar">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
-                                            <a href="?delete=' . $aula['id'] . '" 
-                                               onclick="return confirm(\'Tem certeza que deseja excluir esta aula?\')"
-                                               class="text-red-600 hover:text-red-900 transition-colors" title="Excluir">
-                                                <i class="fas fa-trash"></i>
-                                            </a>
+                                            <form method="POST" class="inline" onsubmit="return confirm(\'Tem certeza que deseja excluir esta aula?\');">
+                                                ' . CSRFHelper::getTokenField() . '
+                                                <input type="hidden" name="delete_id" value="' . $aula['id'] . '">
+                                                <button type="submit" class="text-red-600 hover:text-red-900 transition-colors" title="Excluir">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
                                             </div>
                                         </td>
                                 </tr>';
