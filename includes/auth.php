@@ -626,8 +626,15 @@ function markdownToHtml($text) {
     // Code inline
     $text = preg_replace('/`(.+?)`/', '<code class="bg-gray-100 text-red-600 px-1 py-0.5 rounded text-sm font-mono">$1</code>', $text);
     
-    // Links
-    $text = preg_replace('/\[(.+?)\]\((.+?)\)/', '<a href="$2" class="text-blue-600 hover:text-blue-700 underline" target="_blank">$1</a>', $text);
+    // Links (only allow http/https protocols to prevent javascript: injection)
+    $text = preg_replace_callback('/\[(.+?)\]\((.+?)\)/', function($matches) {
+        $label = $matches[1];
+        $url = $matches[2];
+        if (preg_match('/^https?:\/\//i', $url)) {
+            return '<a href="' . $url . '" class="text-blue-600 hover:text-blue-700 underline" target="_blank" rel="noopener noreferrer">' . $label . '</a>';
+        }
+        return $label;
+    }, $text);
     
     // Listas não ordenadas
     $text = preg_replace('/^\* (.+)$/m', '<li class="ml-4">• $1</li>', $text);

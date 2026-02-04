@@ -1,7 +1,4 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/csrf_helper.php';
 
@@ -23,8 +20,6 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') 
         $error = 'A senha deve ter pelo menos 6 caracteres';
     } else {
         $db = Database::getInstance();
-        
-        // Verificar se email já existe
         $existingUser = $db->fetchOne("SELECT id FROM usuarios WHERE email = ?", [$email]);
         if ($existingUser) {
             $error = 'Este email já está cadastrado';

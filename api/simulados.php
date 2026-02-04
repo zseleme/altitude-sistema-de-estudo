@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once '../includes/auth.php';
 require_once '../includes/csrf_helper.php';
 require_once '../includes/error_helper.php';

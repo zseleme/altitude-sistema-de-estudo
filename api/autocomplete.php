@@ -4,10 +4,6 @@
  * Retorna sugestões de cursos e aulas conforme o usuário digita
  */
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/security_headers.php';
 requireLogin();
