@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
 requireAdmin();
 
 $db = Database::getInstance();
@@ -10,7 +11,8 @@ $success = false;
 $error = '';
 
 // Processar criação de curso (apenas se NÃO for edição)
-if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['edit_id'])) {
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['edit_id']) && !isset($_POST['delete_id'])) {
+    CSRFHelper::validateRequest(false);
     $titulo = trim($_POST['titulo'] ?? '');
     $descricao = trim($_POST['descricao'] ?? '');
     $categoriaId = (int)($_POST['categoria_id'] ?? 0);
@@ -24,31 +26,40 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             // Processar upload de imagem
             if (isset($_FILES['imagem_capa']) && $_FILES['imagem_capa']['error'] === UPLOAD_ERR_OK) {
                 $uploadDir = __DIR__ . '/../uploads/cursos/';
-                $allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+                $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+                $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
                 $maxSize = 5 * 1024 * 1024; // 5MB
-                
-                $fileType = $_FILES['imagem_capa']['type'];
+
                 $fileSize = $_FILES['imagem_capa']['size'];
-                
-                if (!in_array($fileType, $allowedTypes)) {
+
+                // Validação server-side do tipo real do arquivo
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $detectedType = $finfo->file($_FILES['imagem_capa']['tmp_name']);
+
+                if (!in_array($detectedType, $allowedMimes)) {
                     throw new Exception('Formato de imagem inválido. Use JPEG, PNG ou WebP.');
                 }
-                
+
+                // Validar extensão
+                $extension = strtolower(pathinfo($_FILES['imagem_capa']['name'], PATHINFO_EXTENSION));
+                if (!in_array($extension, $allowedExtensions)) {
+                    throw new Exception('Extensão de arquivo não permitida. Use .jpg, .jpeg, .png ou .webp.');
+                }
+
                 if ($fileSize > $maxSize) {
                     throw new Exception('Imagem muito grande. Tamanho máximo: 5MB.');
                 }
-                
+
                 // Verificar se o diretório existe e é gravável
                 if (!is_dir($uploadDir)) {
                     throw new Exception('Diretório de upload não existe.');
                 }
-                
+
                 if (!is_writable($uploadDir)) {
                     throw new Exception('Diretório de upload sem permissão de escrita.');
                 }
-                
+
                 // Gerar nome único para o arquivo
-                $extension = pathinfo($_FILES['imagem_capa']['name'], PATHINFO_EXTENSION);
                 $fileName = 'curso_' . time() . '_' . uniqid() . '.' . $extension;
                 $filePath = $uploadDir . $fileName;
                 
@@ -85,6 +96,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
 
 // Processar edição
 if (isset($_POST['edit_id']) && is_numeric($_POST['edit_id'])) {
+    CSRFHelper::validateRequest(false);
     $cursoId = (int)$_POST['edit_id'];
     $titulo = trim($_POST['titulo'] ?? '');
     $descricao = trim($_POST['descricao'] ?? '');
@@ -111,29 +123,39 @@ if (isset($_POST['edit_id']) && is_numeric($_POST['edit_id'])) {
             // Processar upload de nova imagem
             if (isset($_FILES['imagem_capa']) && $_FILES['imagem_capa']['error'] === UPLOAD_ERR_OK) {
                 $uploadDir = __DIR__ . '/../uploads/cursos/';
-                $allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+                $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+                $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
                 $maxSize = 5 * 1024 * 1024; // 5MB
-                
-                $fileType = $_FILES['imagem_capa']['type'];
+
                 $fileSize = $_FILES['imagem_capa']['size'];
-                
-                if (!in_array($fileType, $allowedTypes)) {
+
+                // Validação server-side do tipo real do arquivo
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $detectedType = $finfo->file($_FILES['imagem_capa']['tmp_name']);
+
+                if (!in_array($detectedType, $allowedMimes)) {
                     throw new Exception('Formato de imagem inválido. Use JPEG, PNG ou WebP.');
                 }
-                
+
+                // Validar extensão
+                $extension = strtolower(pathinfo($_FILES['imagem_capa']['name'], PATHINFO_EXTENSION));
+                if (!in_array($extension, $allowedExtensions)) {
+                    throw new Exception('Extensão de arquivo não permitida. Use .jpg, .jpeg, .png ou .webp.');
+                }
+
                 if ($fileSize > $maxSize) {
                     throw new Exception('Imagem muito grande. Tamanho máximo: 5MB.');
                 }
-                
+
                 // Verificar se o diretório existe e é gravável
                 if (!is_dir($uploadDir)) {
                     throw new Exception('Diretório de upload não existe.');
                 }
-                
+
                 if (!is_writable($uploadDir)) {
                     throw new Exception('Diretório de upload sem permissão de escrita.');
                 }
-                
+
                 // Remover imagem anterior se existir
                 if ($imagemCapa) {
                     $oldImagePath = __DIR__ . '/..' . $imagemCapa;
@@ -141,9 +163,8 @@ if (isset($_POST['edit_id']) && is_numeric($_POST['edit_id'])) {
                         @unlink($oldImagePath);
                     }
                 }
-                
+
                 // Gerar nome único para o arquivo
-                $extension = pathinfo($_FILES['imagem_capa']['name'], PATHINFO_EXTENSION);
                 $fileName = 'curso_' . time() . '_' . uniqid() . '.' . $extension;
                 $filePath = $uploadDir . $fileName;
                 
@@ -182,9 +203,10 @@ if (isset($_POST['edit_id']) && is_numeric($_POST['edit_id'])) {
     }
 }
 
-// Processar exclusão
-if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
-    $cursoId = (int)$_GET['delete'];
+// Processar exclusão (POST com CSRF)
+if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && is_numeric($_POST['delete_id'])) {
+    CSRFHelper::validateRequest(false);
+    $cursoId = (int)$_POST['delete_id'];
     try {
         // Buscar e remover imagem se existir
         $curso = $db->fetchOne("SELECT imagem_capa FROM cursos WHERE id = ?", [$cursoId]);
@@ -194,7 +216,7 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
                 unlink($imagemPath);
             }
         }
-        
+
         $db->execute("UPDATE cursos SET ativo = FALSE WHERE id = ?", [$cursoId]);
         $success = 'Curso excluído com sucesso!';
     } catch (Exception $e) {
@@ -285,6 +307,7 @@ $content = '
                     </h2>
                     
                     <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                        ' . CSRFHelper::getTokenField() . '
                         ' . ($editingCurso ? '<input type="hidden" name="edit_id" value="' . $editingCurso['id'] . '">' : '') . '
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -468,11 +491,13 @@ $content = '
                                                class="text-green-600 hover:text-green-900 transition-colors" title="Gerenciar Aulas">
                                                 <i class="fas fa-video"></i>
                                             </a>
-                                            <a href="?delete=' . $curso['id'] . '" 
-                                               onclick="return confirm(\'Tem certeza que deseja excluir este curso?\')"
-                                               class="text-red-600 hover:text-red-900 transition-colors" title="Excluir">
-                                                            <i class="fas fa-trash"></i>
-                                            </a>
+                                            <form method="POST" class="inline" onsubmit="return confirm(\'Tem certeza que deseja excluir este curso?\');">
+                                                ' . CSRFHelper::getTokenField() . '
+                                                <input type="hidden" name="delete_id" value="' . $curso['id'] . '">
+                                                <button type="submit" class="text-red-600 hover:text-red-900 transition-colors" title="Excluir">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
                                                     </div>
                                                 </td>
                                 </tr>';

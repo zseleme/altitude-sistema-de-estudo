@@ -16,6 +16,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'download') {
         die('Acesso negado');
     }
 
+    // Validar CSRF token no download
+    $csrfToken = $_GET['csrf_token'] ?? '';
+    if (empty($csrfToken) || !isset($_SESSION['csrf_token']['token']) ||
+        !hash_equals($_SESSION['csrf_token']['token'], $csrfToken)) {
+        ob_end_clean();
+        http_response_code(403);
+        die('Token CSRF inválido');
+    }
+
     // Carregar configuração do banco manualmente
     require_once __DIR__ . '/../config/database.php';
     $db = Database::getInstance();
@@ -275,6 +284,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
 requireAdmin();
 
 $db = Database::getInstance();
@@ -289,6 +299,7 @@ if (isset($_SESSION['download_error'])) {
 
 // Processar upload/restore do backup
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['backup_file'])) {
+    CSRFHelper::validateRequest(false);
     try {
         $file = $_FILES['backup_file'];
 
@@ -654,7 +665,7 @@ $content = '
                             </div>
                         </div>
 
-                        <a href="?action=download"
+                        <a href="?action=download&csrf_token=' . urlencode(CSRFHelper::getToken()) . '"
                            class="inline-flex items-center justify-center w-full px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
                             <i class="fas fa-download mr-2"></i>
                             Baixar Backup Agora
@@ -688,6 +699,7 @@ $content = '
                         </div>
 
                         <form method="POST" enctype="multipart/form-data" onsubmit="return confirm(\'ATENÇÃO: Todos os dados atuais serão substituídos. Você tem certeza?\');">
+                            ' . CSRFHelper::getTokenField() . '
                             <div class="mb-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     Arquivo de Backup (' . ($dbType === 'sqlite' ? '.db' : '.sql') . ')

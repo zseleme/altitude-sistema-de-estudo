@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/csrf_helper.php';
 requireAdmin();
 
 $info = [];
@@ -12,6 +13,7 @@ $error = '';
 
 // Processar análise de arquivo
 if (isset($_FILES['backup_file']) && $_FILES['backup_file']['error'] === UPLOAD_ERR_OK) {
+    CSRFHelper::validateRequest(false);
     $file = $_FILES['backup_file'];
     $tempFile = $file['tmp_name'];
 
@@ -101,6 +103,7 @@ ob_start();
     </h2>
 
     <form method="POST" enctype="multipart/form-data">
+        <?php echo CSRFHelper::getTokenField(); ?>
         <div class="mb-4">
             <label class="block text-sm font-medium text-gray-700 mb-2">
                 Arquivo de Backup (.db)

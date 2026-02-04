@@ -334,7 +334,7 @@ All feedback must be in Portuguese (BR) for student understanding.";
         // O endpoint precisa do formato: models/{model}
         $modelPath = 'models/' . str_replace('models/', '', $this->model);
 
-        $url = "https://generativelanguage.googleapis.com/v1/{$modelPath}:generateContent?key={$this->apiKey}";
+        $url = "https://generativelanguage.googleapis.com/v1/{$modelPath}:generateContent";
 
         // Combinar system e user prompts em um único texto (v1 não suporta systemInstruction)
         $combinedPrompt = $systemPrompt . "\n\n" . $userPrompt;
@@ -353,7 +353,10 @@ All feedback must be in Portuguese (BR) for student understanding.";
             ]
         ];
 
-        $headers = ['Content-Type: application/json'];
+        $headers = [
+            'Content-Type: application/json',
+            'x-goog-api-key: ' . $this->apiKey
+        ];
 
         $response = $this->curlRequest($url, $data, $headers);
 
