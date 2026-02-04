@@ -54,6 +54,7 @@ class SecurityHeaders {
             "img-src" => "'self' data: https: http:",
             "font-src" => "'self' https://cdnjs.cloudflare.com data:",
             "connect-src" => "'self'",
+            "frame-src" => "https://www.youtube.com https://player.vimeo.com https://onedrive.live.com",
             "frame-ancestors" => "'none'",
             "base-uri" => "'self'",
             "form-action" => "'self'",
