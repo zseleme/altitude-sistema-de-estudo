@@ -93,7 +93,8 @@ $csrfToken = CSRFHelper::getToken();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Alterar Senha - Altitude</title>
     <meta name="csrf-token" content="<?php echo htmlspecialchars($csrfToken); ?>">
-    <link href="favicon.ico" rel="shortcut icon" type="image/vnd.microsoft.icon">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
