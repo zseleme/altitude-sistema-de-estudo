@@ -1,7 +1,4 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/csrf_helper.php';
 requireAdmin();
@@ -11,17 +8,15 @@ $success = false;
 $error = '';
 $editingAula = null;
 
-// Processar edição
 if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     $aulaId = (int)$_GET['edit'];
     $editingAula = $db->fetchOne("SELECT * FROM aulas WHERE id = ?", [$aulaId]);
     if (!$editingAula) {
         $error = 'Aula não encontrada';
     } else {
-        // Buscar materiais complementares se existirem
         $materiais = $db->fetchAll("SELECT * FROM materiais_complementares WHERE aula_id = ? AND ativo = TRUE ORDER BY id", [$aulaId]);
         if (!empty($materiais)) {
-            // Padronizar nome da coluna para cada material
+            // Map db column to form field name expected by JavaScript
             foreach ($materiais as &$material) {
                 $material['url'] = $material['url_arquivo'];
             }
@@ -30,7 +25,6 @@ if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     }
 }
 
-// Processar formulário (criar ou editar)
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['delete_id'])) {
     CSRFHelper::validateRequest(false);
     $titulo = trim($_POST['titulo'] ?? '');
@@ -40,18 +34,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     $cursoId = (int)($_POST['curso_id'] ?? 0);
     $duracaoMinutos = (int)($_POST['duracao_minutos'] ?? 30);
     $aulaId = isset($_POST['aula_id']) ? (int)$_POST['aula_id'] : null;
-    
-    // Dados dos materiais (opcional)
+
     $materiais = $_POST['materiais'] ?? [];
     $materiaisValidos = [];
-    
-    // Validar materiais
+
     foreach ($materiais as $material) {
         $titulo = trim($material['titulo'] ?? '');
         $descricao = trim($material['descricao'] ?? '');
         $url = trim($material['url'] ?? '');
         $tipo = trim($material['tipo'] ?? '');
-        
+
         if (!empty($titulo) && !empty($url) && !empty($tipo)) {
             $materiaisValidos[] = [
                 'titulo' => $titulo,
@@ -69,14 +61,12 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             $db->beginTransaction();
             
             if ($aulaId) {
-                // Editar aula existente
                 $db->execute(
                     "UPDATE aulas SET titulo = ?, descricao = ?, url_video = ?, ordem = ?, curso_id = ?, duracao_minutos = ? WHERE id = ?",
                     [$titulo, $descricao, $urlVideo, $ordem, $cursoId, $duracaoMinutos, $aulaId]
                 );
                 $success = 'Aula atualizada com sucesso!';
             } else {
-                // Criar nova aula
                 $db->execute(
                     "INSERT INTO aulas (titulo, descricao, url_video, ordem, curso_id, duracao_minutos, ativo) VALUES (?, ?, ?, ?, ?, ?, TRUE)",
                     [$titulo, $descricao, $urlVideo, $ordem, $cursoId, $duracaoMinutos]
@@ -84,13 +74,10 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $aulaId = $db->lastInsertId();
                 $success = 'Aula criada com sucesso!';
             }
-            
-            // Processar materiais se fornecidos
+
             if (!empty($materiaisValidos) && $aulaId) {
-                // Remover materiais existentes
                 $db->execute("DELETE FROM materiais_complementares WHERE aula_id = ?", [$aulaId]);
-                
-                // Inserir novos materiais
+
                 foreach ($materiaisValidos as $material) {
                     $db->execute(
                         "INSERT INTO materiais_complementares (titulo, descricao, url_arquivo, tipo, aula_id, ativo) VALUES (?, ?, ?, ?, ?, TRUE)",
@@ -99,9 +86,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 }
                 $success .= ' ' . count($materiaisValidos) . ' material(is) complementar(es) adicionado(s)!';
             }
-            
+
             $db->commit();
-            $editingAula = null; // Limpar edição
+            $editingAula = null;
         } catch (Exception $e) {
             $db->rollback();
             $error = 'Erro ao salvar aula: ' . $e->getMessage();
@@ -109,7 +96,6 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     }
 }
 
-// Processar exclusão (POST com CSRF)
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && is_numeric($_POST['delete_id'])) {
     CSRFHelper::validateRequest(false);
     $aulaId = (int)$_POST['delete_id'];
@@ -121,7 +107,6 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     }
 }
 
-// Buscar aulas
 $cursoFiltro = isset($_GET['curso']) ? (int)$_GET['curso'] : null;
 $whereClause = "WHERE a.ativo = TRUE";
 $params = [];

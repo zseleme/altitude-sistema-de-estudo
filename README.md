@@ -1,6 +1,6 @@
 # 📚 Altitude Sistema de Estudo
 
-Sistema de gerenciamento de aprendizagem (LMS) completo desenvolvido em PHP vanilla, com suporte a PostgreSQL e SQLite, integração com IA para análise de questões, e ferramentas avançadas de estudo.
+Sistema de gerenciamento de aprendizagem (LMS) completo desenvolvido em PHP vanilla, com suporte a PostgreSQL e SQLite, integração com IA para análise de questões e geração de conteúdo, e ferramentas avançadas de estudo.
 
 [![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-blue.svg)](https://www.php.net/)
 [![Database](https://img.shields.io/badge/Database-PostgreSQL%20%7C%20SQLite-green.svg)](https://www.postgresql.org/)
@@ -24,19 +24,18 @@ Sistema de gerenciamento de aprendizagem (LMS) completo desenvolvido em PHP vani
   - Histórico de tentativas e desempenho
   - Timer e pontuação automática
 
-- **Ferramentas de Estudo**
-  - Anotações por aula
-  - Materiais complementares para download
-  - Modo teatro para visualização imersiva
-  - Estudo de inglês com flashcards
-  - Navegação intuitiva entre conteúdos
+- **Ferramentas de Estudo de Inglês**
+  - **Lições com IA**: Geração de lições personalizadas sobre qualquer tema (Múltipla escolha, Lacunas e Escrita)
+  - **Diário de Estudos**: Prática diária de escrita com revisão gramatical por IA
+  - **Revisão Expert**: Feedback detalhado e encorajador gerado por IA
+  - **Exportação**: Sistema para exportar frases e progressos
 
 ### 🎯 Para Administradores
 
 - **Gestão de Conteúdo**
   - CRUD completo de cursos, aulas e categorias
   - Upload de materiais complementares
-  - Importação de playlists do YouTube
+  - **Integração YouTube**: Importação automática de playlists via YouTube Data API v3
   - Geração de certificados personalizados
 
 - **Sistema de Simulados**
@@ -46,64 +45,59 @@ Sistema de gerenciamento de aprendizagem (LMS) completo desenvolvido em PHP vani
 
 - **Integração com IA**
   - Configuração de múltiplos provedores (OpenAI, Google Gemini, Groq)
-  - Análise automática de respostas erradas
-  - Prompts personalizáveis
-  - Gerenciamento de tokens e custos
+  - Gerenciamento centralizado de modelos e temperaturas
+  - Prompts personalizáveis para diferentes contextos
+  - **Segurança**: Chaves de API criptografadas em repouso (AES-256)
 
 ## 🤖 Integração com IA
 
-O sistema oferece análise inteligente de questões através de múltiplos provedores de IA:
+O sistema oferece análise inteligente de questões e geração de lições através de múltiplos provedores:
 
-- **OpenAI GPT-4o-mini**: Análise avançada e precisa
-- **Google Gemini 2.5 Flash**: Rápido e eficiente (padrão)
-- **Groq Llama 3.1**: Alta velocidade de inferência
+- **Google Gemini 2.5 Flash**: Rápido e eficiente (Padrão recomendado)
+- **OpenAI GPT-4o-mini**: Qualidade superior e análise precisa
+- **Groq Llama 3.1 8b**: Altíssima velocidade de inferência
 
 A IA fornece:
-- Explicação detalhada do erro cometido
-- Análise da resposta correta
-- Dicas para evitar erros similares
-- Conteúdo relacionado para estudo
+- Explicação detalhada de erros em simulados
+- Geração de questões gramaticais e de escrita em inglês
+- Revisão pedagógica de textos livres
+- Dicas de estudo personalizadas
 
 ## 🛠️ Tecnologias
 
 ### Backend
-- **PHP 7.4+**: Vanilla PHP, sem frameworks
-- **PostgreSQL 12+** / **SQLite 3**: Suporte dual-database
-- **PDO**: Prepared statements para segurança
-- **API REST**: Endpoints JSON para AJAX
+- **PHP 7.4+**: Vanilla PHP, focado em performance e simplicidade
+- **PostgreSQL 12+** / **SQLite 3**: Suporte dual-database com camada de abstração
+- **PDO**: Prepared statements para proteção total contra SQL Injection
+- **API REST**: Endpoints JSON para comunicação assíncrona (AJAX)
 
 ### Frontend
-- **Tailwind CSS**: Estilização moderna e responsiva
-- **JavaScript ES6+**: Interatividade nativa
-- **Font Awesome 6**: Biblioteca de ícones
-- **Responsive Design**: Mobile-first
+- **Tailwind CSS**: Estilização moderna, responsiva e customizada
+- **JavaScript ES6+**: Interatividade nativa sem dependências pesadas
+- **Font Awesome 6**: Biblioteca completa de ícones
+- **Responsive Design**: Experiência otimizada para Desktop e Mobile
 
-### DevOps
-- **GitHub Actions**: CI/CD automatizado
-- **FTP Deploy**: Deploy automático para produção/staging
-- **Version Tracking**: Controle de versões via Git
+### DevOps & Infra
+- **GitHub Actions**: CI/CD para validação e deploy automatizado
+- **FTP Deploy**: Sincronização automática para servidores de produção/staging
+- **Nixpacks**: Suporte nativo para plataformas como Railway e Render
+- **Version Tracking**: Controle rigoroso de versões e ambientes
 
 ## 📋 Pré-requisitos
 
 - PHP 7.4 ou superior
 - PostgreSQL 12+ (produção) ou SQLite 3 (desenvolvimento)
-- Extensões PHP necessárias:
-  - `pdo`
-  - `pdo_pgsql` (para PostgreSQL)
-  - `pdo_sqlite` (para SQLite)
-  - `mbstring`
-  - `json`
-  - `curl`
+- Extensões PHP obrigatórias: `pdo`, `pdo_pgsql`/`pdo_sqlite`, `mbstring`, `json`, `curl`, `openssl`
 
 ## 🔧 Instalação
 
 ### Instalação Automática (Recomendado)
 
-O sistema possui **auto-instalação inteligente**. Basta acessar a aplicação:
+O sistema possui **auto-instalação inteligente**. Basta acessar a aplicação pela primeira vez:
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/seu-usuario/altitude-sistema-de-estudo.git
+git clone https://github.com/zseleme/altitude-sistema-de-estudo.git
 cd altitude-sistema-de-estudo
 ```
 
@@ -112,301 +106,100 @@ cd altitude-sistema-de-estudo
 php -S localhost:8000
 ```
 
-3. Acesse `http://localhost:8000` no navegador
+3. Acesse `http://localhost:8000` no navegador.
 
 O sistema irá automaticamente:
-- Criar o arquivo de configuração do banco de dados
-- Criar o banco SQLite com todas as tabelas
-- Inserir dados iniciais (admin, categorias, configurações)
+- Criar o arquivo de configuração `config/database.php`
+- Inicializar o banco de dados (SQLite por padrão)
+- Criar todas as tabelas e dados mestres (admin, categorias, configurações de IA)
 
 ### Credenciais Padrão
-
-Após a instalação automática:
 - **Email**: `admin@teste.com`
 - **Senha**: `admin123`
-
-**⚠️ Importante**: Altere as credenciais padrão após o primeiro acesso!
-
-### Instalação Manual (PostgreSQL)
-
-Se preferir usar PostgreSQL:
-
-1. Copie o arquivo de configuração:
-```bash
-cp config/database.example.php config/database.php
-```
-
-2. Edite `config/database.php` com suas credenciais PostgreSQL
-
-3. Execute o script de setup:
-```bash
-php setup_postgres.php
-```
+*(Altere imediatamente após o primeiro login em /alterar_senha.php)*
 
 ## 📊 Estrutura do Projeto
 
 ```
 altitude-sistema-de-estudo/
-├── admin/                      # Área administrativa
-│   ├── categorias.php          # Gestão de categorias
-│   ├── cursos.php              # Gestão de cursos
-│   ├── aulas.php               # Gestão de aulas
-│   ├── simulados.php           # Gestão de simulados
-│   ├── configuracoes_ia.php    # Configurações de IA
+├── admin/                      # Painel administrativo
+│   ├── configuracoes_ia.php    # Gestão de APIs e Provedores
+│   ├── cursos.php              # Gestão de LMS
 │   └── ...
-├── api/                        # Endpoints REST
-│   ├── simulados.php           # API de simulados
-│   ├── analise_questao_ia.php  # Análise com IA
-│   ├── progresso.php           # Tracking de progresso
-│   ├── anotacoes.php           # Sistema de notas
+├── api/                        # Endpoints REST JSON
+│   ├── analise_questao_ia.php  # Motor de análise de questões
+│   ├── importar_playlist_yt.php# Integração com YouTube API
+│   ├── ingles_licoes.php       # Controller de lições com IA
 │   └── ...
-├── assets/                     # Arquivos estáticos
-│   ├── css/                    # Estilos personalizados
-│   ├── js/                     # Scripts JavaScript
-│   └── images/                 # Imagens e ícones
-├── config/                     # Configurações
-│   ├── database.php            # Config do banco (auto-gerado)
-│   ├── database.example.php    # Template de config
-│   └── estudos.db              # Banco SQLite (auto-criado)
-├── includes/                   # Bibliotecas PHP
-│   ├── auth.php                # Autenticação
-│   ├── auto_install.php        # Sistema de auto-instalação
-│   ├── ai_helper.php           # Helper de IA
-│   ├── layout.php              # Sistema de layout
-│   └── version.php             # Controle de versão
-├── ingles/                     # Sistema de inglês
-│   ├── flashcards.php          # Flashcards
+├── config/                     # Configurações e Banco Local
+│   ├── database.php            # Abstração de banco (auto-gerado)
+│   └── estudos.db              # Banco SQLite padrão
+├── includes/                   # Núcleo do sistema
+│   ├── ai_helper.php           # Abstração de Provedores IA
+│   ├── auto_install.php        # Engine de auto-instalação e Schema
+│   ├── encryption_helper.php   # Segurança (AES-256-CBC)
+│   └── layout.php              # Sistema de templates
+├── ingles/                     # Módulo de idiomas
+│   ├── diario.php              # Diário de escrita
+│   ├── licoes.php              # Gerador de lições com IA
 │   └── ...
-├── uploads/                    # Arquivos enviados
-│   └── certificados/           # Certificados gerados
-├── .github/workflows/          # GitHub Actions
-│   └── ftp-deploy.yml          # Deploy automatizado
-├── aula.php                    # Visualização de aulas
-├── curso.php                   # Detalhes do curso
-├── home.php                    # Dashboard
-├── simulado.php                # Interface de simulados
-├── CLAUDE.md                   # Instruções para Claude Code
-└── README.md                   # Este arquivo
+├── .github/workflows/          # Automação de Deploy
+├── index.php                   # Portal do aluno
+└── README.md                   # Documentação
 ```
-
-## 🗄️ Arquitetura do Banco de Dados
-
-### Camada de Abstração
-
-O sistema utiliza uma **camada de abstração customizada** em `config/database.php` que garante compatibilidade entre PostgreSQL e SQLite:
-
-```php
-$db = Database::getInstance();
-
-// Detectar tipo de banco
-if ($db->isSQLite()) {
-    // SQL específico para SQLite
-} else {
-    // SQL específico para PostgreSQL
-}
-
-// Helpers de compatibilidade
-$db->getBoolTrue();   // TRUE ou 1
-$db->getBoolFalse();  // FALSE ou 0
-```
-
-### Principais Tabelas
-
-- **usuarios**: Usuários do sistema
-- **categorias**: Categorias de cursos
-- **cursos**: Cursos disponíveis
-- **aulas**: Aulas de cada curso
-- **materiais_complementares**: Materiais de apoio
-- **simulados**: Simulados/provas
-- **simulado_questoes**: Questões dos simulados
-- **simulado_tentativas**: Tentativas dos alunos
-- **simulado_respostas**: Respostas (com análise IA)
-- **progresso_aulas**: Progresso por aula
-- **progresso_cursos**: Progresso por curso
-- **anotacoes**: Anotações dos estudantes
-- **configuracoes**: Configurações do sistema (incluindo IA)
-- **ingles_***: Tabelas do sistema de inglês
-
-**Nota**: Todo o schema está definido em `includes/auto_install.php` - não há sistema de migrations separado.
 
 ## 🎨 Interface e UX
 
-### Design Responsivo
-- Layout adaptativo para desktop, tablet e mobile
-- Sidebar retrátil em dispositivos móveis
-- Grid system com Tailwind CSS
-- Componentes reutilizáveis
+O sistema foi desenhado para proporcionar uma experiência de estudo imersiva e moderna:
 
-### Modo Teatro
-- Visualização imersiva de vídeos
-- Overlay escurecido
-- Controles de navegação
-- Saída via ESC, clique fora ou botão
+- **Design Responsivo**: Interface adaptativa construída com Tailwind CSS, garantindo produtividade no desktop e mobilidade no celular.
+- **Gráficos e Indicadores**: Visualização Clara do progresso com barras dinâmicas, badges de conquista e estatísticas de desempenho.
+- **Modo Estudo**: Interface limpa e sem distrações durante as aulas, com suporte a anotações em tempo real.
+- **Interatividade**: Feedback visual instantâneo em simulados e lições, com explicações contextuais geradas por IA.
 
-### Indicadores Visuais
-- Barras de progresso verdes
-- Badges de conclusão
-- Scroll automático para conteúdo atual
-- Feedback visual em ações
+## 🔐 Segurança e Criptografia
 
-## 🔐 Segurança
+O Altitude prioriza a segurança dos seus dados e credenciais:
 
-- ✅ **Autenticação**: Sistema de sessões seguro com regeneração periódica
-- ✅ **Senhas**: Hash com `password_hash()` (bcrypt), troca obrigatória para senha padrão
-- ✅ **SQL Injection**: Prepared statements (PDO)
-- ✅ **XSS**: Sanitização com `htmlspecialchars()`
-- ✅ **CSRF**: Tokens únicos por sessão, validação automática em APIs
-- ✅ **Controle de Acesso**: `requireLogin()` e `requireAdmin()`
-- ✅ **Criptografia**: AES-256-CBC para chaves de API (OpenAI, Gemini, Groq, YouTube)
-- ✅ **Rate Limiting**: Proteção contra abuso de APIs de IA (30/hora, 5/minuto)
-- ✅ **Security Headers**: CSP, X-Frame-Options, HSTS, X-Content-Type-Options
-- ✅ **Input Validation**: Validação de comprimento, tipo e formato de dados
+### Criptografia de Chaves de API
+Todas as chaves sensíveis (OpenAI, Gemini, Groq, YouTube) são armazenadas criptografadas no banco de dados utilizando **AES-256-CBC**.
 
-### 🔑 Configuração de Criptografia
+Para ativar esta funcionalidade, você **deve** configurar uma chave mestra:
 
-Para proteger chaves de API em produção, configure uma chave de criptografia forte:
-
-**Gerar chave:**
+**1. Gerar uma chave forte:**
 ```bash
-# Linux/Mac/Windows com Git Bash
-openssl rand -base64 32
-
-# Ou via PHP
 php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
 ```
 
-**Configurar:**
+**2. Configurar no Ambiente (Produção):**
+Defina a variável de ambiente `ENCRYPTION_KEY` no seu servidor ou `.htaccess`:
 ```apache
-# .htaccess ou configuração do servidor
-SetEnv ALTITUDE_ENCRYPTION_KEY "sua-chave-de-32-caracteres-aqui"
+SetEnv ENCRYPTION_KEY "sua-chave-gerada-aqui"
 ```
 
-**⚠️ Importante:**
-- Use chave única de no mínimo 32 caracteres
-- Nunca commite a chave no repositório
-- Guarde em local seguro (gerenciador de senhas)
-- Se perder a chave, API keys criptografadas serão inacessíveis
-
-Para mais detalhes, veja [FTP_DEPLOY.md](.github/FTP_DEPLOY.md#-configuração-de-criptografia-obrigatório-para-produção).
+*Nota: Em ambiente de desenvolvimento local (detectado pela pasta .git), o sistema gera automaticamente uma chave em `config/encryption.key` se não encontrar a variável de ambiente.*
 
 ## 🚀 Deploy
 
-### Deploy Automatizado (GitHub Actions)
+### Deploy Automatizado
+O projeto está configurado com GitHub Actions para deploy contínuo:
+- **Branch `main`**: Deploy para Produção
+- **Branch `develop`**: Deploy para Staging
 
-O projeto possui deploy **totalmente automatizado**:
-
-- **Push para `main`** → Deploy em **produção** (seleme.pt)
-- **Push para `develop`** → Deploy em **staging** (dev.seleme.pt)
-
-O workflow (`ftp-deploy.yml`) executa:
-1. Validação de sintaxe PHP
-2. Geração de `version.json`
-3. Deploy via FTP
-4. Exclusão de arquivos desnecessários
-
-### Deploy Manual
-
+### Deploy via Nixpacks
+Compatível com plataformas modernas:
 ```bash
-# 1. Validar sintaxe PHP
-find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \;
-
-# 2. Fazer upload via FTP/SFTP
-# Excluir: .git, .github, node_modules, .env, config/database.php
-
-# 3. Configurar permissões no servidor
-chmod 755 config/
-chmod 666 config/estudos.db  # Se usar SQLite
+nixpacks build .
 ```
-
-## 📈 Sistema de Versões
-
-O sistema detecta automaticamente o ambiente:
-
-- **Produção**: Arquivo `version.json` com env=Produção
-- **Desenvolvimento**: Arquivo `version.json` com env=Desenvolvimento
-- **Local**: Presença de pasta `.git/`
-
-Versão exibida no rodapé da sidebar com código de cores:
-- 🟢 Verde: Produção
-- 🟡 Amarelo: Desenvolvimento
-- ⚪ Cinza: Local
 
 ## 🧪 Desenvolvimento
 
-### Servidor Local
-
-```bash
-# Iniciar servidor PHP
-php -S localhost:8000
-
-# Acessar aplicação
-http://localhost:8000
-```
-
-### Boas Práticas
-
-1. **Compatibilidade SQL**: Sempre teste queries em ambos os bancos
-2. **Prepared Statements**: Use sempre para queries dinâmicas
-3. **Layout System**: Use `renderLayout()` para páginas padrão
-4. **API Pattern**: Siga o padrão switch/case em `api/`
-5. **Sem Over-engineering**: Mantenha simplicidade
-
-### Exemplo de Query Compatível
-
-```php
-// ✅ Correto - Compatível com ambos
-$isTrue = $db->isSQLite() ? 1 : 'TRUE';
-$query = "SELECT * FROM table WHERE active = $isTrue";
-
-// ❌ Errado - MySQL-specific
-$query = "INSERT ... ON DUPLICATE KEY UPDATE ...";
-
-// ✅ Correto - Padrão manual
-$existing = $db->fetchOne("SELECT id FROM table WHERE key = ?", [$key]);
-if ($existing) {
-    $db->execute("UPDATE table SET value = ?", [$value]);
-} else {
-    $db->execute("INSERT INTO table (key, value) VALUES (?, ?)", [$key, $value]);
-}
-```
-
-## 🤝 Contribuindo
-
-1. Fork o projeto
-2. Crie uma branch: `git checkout -b feature/MinhaFeature`
-3. Commit: `git commit -m 'feat: adiciona MinhaFeature'`
-4. Push: `git push origin feature/MinhaFeature`
-5. Abra um Pull Request para `develop`
-
-### Convenções
-
-- **Commits**: Siga [Conventional Commits](https://www.conventionalcommits.org/)
-- **Código**: PSR-12 para PHP, ESLint para JavaScript
-- **Branches**: `feature/`, `fix/`, `docs/`, etc.
-- **PRs**: Sempre para `develop`, nunca direto para `main`
-
-## 📝 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
-
-## 👨‍💻 Autores
-
-Desenvolvido com dedicação para democratizar o acesso à educação de qualidade.
-
-## 🐛 Suporte
-
-- **Issues**: [GitHub Issues](https://github.com/seu-usuario/altitude-sistema-de-estudo/issues)
-- **Documentação**: Veja [CLAUDE.md](CLAUDE.md) para detalhes técnicos
-- **Email**: suporte@seleme.pt
-
-## 🌟 Agradecimentos
-
-- [Tailwind CSS](https://tailwindcss.com/) - Framework CSS
-- [Font Awesome](https://fontawesome.com/) - Ícones
-- [OpenAI](https://openai.com/), [Google Gemini](https://deepmind.google/technologies/gemini/), [Groq](https://groq.com/) - Provedores de IA
+1. **Compatibilidade**: Sempre use o helper `$db->isSQLite()` ou `$db->isPostgreSQL()` para queries específicas.
+2. **Boas Práticas**: Todas as novas funcionalidades de IA devem passar pelo `AIHelper`.
+3. **Schema**: Mudanças no banco de dados devem ser refletidas em `includes/auto_install.php`.
 
 ---
 
-⭐ Se este projeto foi útil para você, considere dar uma estrela no repositório!
+⭐ Se este projeto é útil para você, considere dar uma estrela no repositório!
 
 **Desenvolvido com ❤️ pela equipe Altitude**

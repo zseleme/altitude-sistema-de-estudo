@@ -1,7 +1,4 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/csrf_helper.php';
 requireAdmin();
@@ -10,79 +7,99 @@ $db = Database::getInstance();
 $success = false;
 $error = '';
 
-// Processar criação de curso (apenas se NÃO for edição)
+/**
+ * Validate and process a course cover image upload.
+ *
+ * Performs MIME type detection via finfo, extension validation,
+ * size check, and moves the uploaded file to the courses upload directory.
+ *
+ * @param string $fieldName The $_FILES key for the upload field.
+ * @return string|null The web-relative path to the uploaded image, or null if no file was uploaded.
+ * @throws Exception On any validation or filesystem error.
+ */
+function processImageUpload(string $fieldName): ?string {
+    if (!isset($_FILES[$fieldName]) || $_FILES[$fieldName]['error'] === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+
+    if ($_FILES[$fieldName]['error'] !== UPLOAD_ERR_OK) {
+        $uploadErrors = [
+            UPLOAD_ERR_INI_SIZE   => 'O arquivo excede o tamanho máximo permitido pelo servidor.',
+            UPLOAD_ERR_FORM_SIZE  => 'O arquivo excede o tamanho máximo do formulário.',
+            UPLOAD_ERR_PARTIAL    => 'O upload do arquivo foi feito parcialmente.',
+            UPLOAD_ERR_NO_TMP_DIR => 'Diretório temporário ausente.',
+            UPLOAD_ERR_CANT_WRITE => 'Falha ao gravar arquivo no disco.',
+            UPLOAD_ERR_EXTENSION  => 'Uma extensão do PHP parou o upload do arquivo.',
+        ];
+        throw new Exception($uploadErrors[$_FILES[$fieldName]['error']] ?? 'Erro desconhecido no upload.');
+    }
+
+    $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    $maxSize = 5 * 1024 * 1024; // 5 MB
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $detectedType = $finfo->file($_FILES[$fieldName]['tmp_name']);
+    if (!in_array($detectedType, $allowedMimes)) {
+        throw new Exception('Formato de imagem inválido. Use JPEG, PNG ou WebP.');
+    }
+
+    $extension = strtolower(pathinfo($_FILES[$fieldName]['name'], PATHINFO_EXTENSION));
+    if (!in_array($extension, $allowedExtensions)) {
+        throw new Exception('Extensão de arquivo não permitida. Use .jpg, .jpeg, .png ou .webp.');
+    }
+
+    if ($_FILES[$fieldName]['size'] > $maxSize) {
+        throw new Exception('Imagem muito grande. Tamanho máximo: 5MB.');
+    }
+
+    $uploadDir = __DIR__ . '/../uploads/cursos/';
+    if (!is_dir($uploadDir)) {
+        throw new Exception('Diretório de upload não existe.');
+    }
+    if (!is_writable($uploadDir)) {
+        throw new Exception('Diretório de upload sem permissão de escrita.');
+    }
+
+    $fileName = 'curso_' . time() . '_' . uniqid() . '.' . $extension;
+    $filePath = $uploadDir . $fileName;
+
+    if (!move_uploaded_file($_FILES[$fieldName]['tmp_name'], $filePath)) {
+        $uploadError = error_get_last();
+        throw new Exception('Erro ao fazer upload da imagem: ' . ($uploadError['message'] ?? 'Erro desconhecido'));
+    }
+
+    return '/uploads/cursos/' . $fileName;
+}
+
+/**
+ * Delete a course cover image file from disk.
+ *
+ * @param string|null $imagemCapa The web-relative path to the image.
+ * @param bool $suppressErrors If true, uses @ to suppress unlink errors (for old image replacement).
+ */
+function deleteCoverImage(?string $imagemCapa, bool $suppressErrors = false): void {
+    if (!$imagemCapa) {
+        return;
+    }
+    $fullPath = __DIR__ . '/..' . $imagemCapa;
+    if (file_exists($fullPath)) {
+        $suppressErrors ? @unlink($fullPath) : unlink($fullPath);
+    }
+}
+
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['edit_id']) && !isset($_POST['delete_id'])) {
     CSRFHelper::validateRequest(false);
     $titulo = trim($_POST['titulo'] ?? '');
     $descricao = trim($_POST['descricao'] ?? '');
     $categoriaId = (int)($_POST['categoria_id'] ?? 0);
-    
+
     if (empty($titulo) || !$categoriaId) {
         $error = 'Título e categoria são obrigatórios';
     } else {
         try {
-            $imagemCapa = null;
-            
-            // Processar upload de imagem
-            if (isset($_FILES['imagem_capa']) && $_FILES['imagem_capa']['error'] === UPLOAD_ERR_OK) {
-                $uploadDir = __DIR__ . '/../uploads/cursos/';
-                $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
-                $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
-                $maxSize = 5 * 1024 * 1024; // 5MB
+            $imagemCapa = processImageUpload('imagem_capa');
 
-                $fileSize = $_FILES['imagem_capa']['size'];
-
-                // Validação server-side do tipo real do arquivo
-                $finfo = new finfo(FILEINFO_MIME_TYPE);
-                $detectedType = $finfo->file($_FILES['imagem_capa']['tmp_name']);
-
-                if (!in_array($detectedType, $allowedMimes)) {
-                    throw new Exception('Formato de imagem inválido. Use JPEG, PNG ou WebP.');
-                }
-
-                // Validar extensão
-                $extension = strtolower(pathinfo($_FILES['imagem_capa']['name'], PATHINFO_EXTENSION));
-                if (!in_array($extension, $allowedExtensions)) {
-                    throw new Exception('Extensão de arquivo não permitida. Use .jpg, .jpeg, .png ou .webp.');
-                }
-
-                if ($fileSize > $maxSize) {
-                    throw new Exception('Imagem muito grande. Tamanho máximo: 5MB.');
-                }
-
-                // Verificar se o diretório existe e é gravável
-                if (!is_dir($uploadDir)) {
-                    throw new Exception('Diretório de upload não existe.');
-                }
-
-                if (!is_writable($uploadDir)) {
-                    throw new Exception('Diretório de upload sem permissão de escrita.');
-                }
-
-                // Gerar nome único para o arquivo
-                $fileName = 'curso_' . time() . '_' . uniqid() . '.' . $extension;
-                $filePath = $uploadDir . $fileName;
-                
-                if (!move_uploaded_file($_FILES['imagem_capa']['tmp_name'], $filePath)) {
-                    $uploadError = error_get_last();
-                    throw new Exception('Erro ao fazer upload da imagem: ' . ($uploadError['message'] ?? 'Erro desconhecido'));
-                }
-                
-                $imagemCapa = '/uploads/cursos/' . $fileName;
-            } elseif (isset($_FILES['imagem_capa']) && $_FILES['imagem_capa']['error'] !== UPLOAD_ERR_NO_FILE) {
-                // Outro erro de upload
-                $errors = [
-                    UPLOAD_ERR_INI_SIZE => 'O arquivo excede o tamanho máximo permitido pelo servidor.',
-                    UPLOAD_ERR_FORM_SIZE => 'O arquivo excede o tamanho máximo do formulário.',
-                    UPLOAD_ERR_PARTIAL => 'O upload do arquivo foi feito parcialmente.',
-                    UPLOAD_ERR_NO_TMP_DIR => 'Diretório temporário ausente.',
-                    UPLOAD_ERR_CANT_WRITE => 'Falha ao gravar arquivo no disco.',
-                    UPLOAD_ERR_EXTENSION => 'Uma extensão do PHP parou o upload do arquivo.'
-                ];
-                $errorMsg = $errors[$_FILES['imagem_capa']['error']] ?? 'Erro desconhecido no upload.';
-                throw new Exception($errorMsg);
-            }
-            
             $db->execute(
                 "INSERT INTO cursos (titulo, descricao, categoria_id, imagem_capa, ativo) VALUES (?, ?, ?, ?, TRUE)",
                 [$titulo, $descricao, $categoriaId, $imagemCapa]
@@ -94,7 +111,6 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     }
 }
 
-// Processar edição
 if (isset($_POST['edit_id']) && is_numeric($_POST['edit_id'])) {
     CSRFHelper::validateRequest(false);
     $cursoId = (int)$_POST['edit_id'];
@@ -102,99 +118,31 @@ if (isset($_POST['edit_id']) && is_numeric($_POST['edit_id'])) {
     $descricao = trim($_POST['descricao'] ?? '');
     $categoriaId = (int)($_POST['categoria_id'] ?? 0);
     $removerImagem = isset($_POST['remover_imagem']);
-    
+
     if (empty($titulo) || !$categoriaId) {
         $error = 'Título e categoria são obrigatórios';
     } else {
         try {
-            // Buscar curso atual para verificar imagem existente
             $cursoAtual = $db->fetchOne("SELECT imagem_capa FROM cursos WHERE id = ?", [$cursoId]);
             $imagemCapa = $cursoAtual['imagem_capa'];
-            
-            // Se marcou para remover imagem
+
             if ($removerImagem && $imagemCapa) {
-                $imagemPath = __DIR__ . '/..' . $imagemCapa;
-                if (file_exists($imagemPath)) {
-                    unlink($imagemPath);
-                }
+                deleteCoverImage($imagemCapa);
                 $imagemCapa = null;
             }
-            
-            // Processar upload de nova imagem
-            if (isset($_FILES['imagem_capa']) && $_FILES['imagem_capa']['error'] === UPLOAD_ERR_OK) {
-                $uploadDir = __DIR__ . '/../uploads/cursos/';
-                $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
-                $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
-                $maxSize = 5 * 1024 * 1024; // 5MB
 
-                $fileSize = $_FILES['imagem_capa']['size'];
-
-                // Validação server-side do tipo real do arquivo
-                $finfo = new finfo(FILEINFO_MIME_TYPE);
-                $detectedType = $finfo->file($_FILES['imagem_capa']['tmp_name']);
-
-                if (!in_array($detectedType, $allowedMimes)) {
-                    throw new Exception('Formato de imagem inválido. Use JPEG, PNG ou WebP.');
-                }
-
-                // Validar extensão
-                $extension = strtolower(pathinfo($_FILES['imagem_capa']['name'], PATHINFO_EXTENSION));
-                if (!in_array($extension, $allowedExtensions)) {
-                    throw new Exception('Extensão de arquivo não permitida. Use .jpg, .jpeg, .png ou .webp.');
-                }
-
-                if ($fileSize > $maxSize) {
-                    throw new Exception('Imagem muito grande. Tamanho máximo: 5MB.');
-                }
-
-                // Verificar se o diretório existe e é gravável
-                if (!is_dir($uploadDir)) {
-                    throw new Exception('Diretório de upload não existe.');
-                }
-
-                if (!is_writable($uploadDir)) {
-                    throw new Exception('Diretório de upload sem permissão de escrita.');
-                }
-
-                // Remover imagem anterior se existir
-                if ($imagemCapa) {
-                    $oldImagePath = __DIR__ . '/..' . $imagemCapa;
-                    if (file_exists($oldImagePath)) {
-                        @unlink($oldImagePath);
-                    }
-                }
-
-                // Gerar nome único para o arquivo
-                $fileName = 'curso_' . time() . '_' . uniqid() . '.' . $extension;
-                $filePath = $uploadDir . $fileName;
-                
-                if (!move_uploaded_file($_FILES['imagem_capa']['tmp_name'], $filePath)) {
-                    $uploadError = error_get_last();
-                    throw new Exception('Erro ao fazer upload da imagem: ' . ($uploadError['message'] ?? 'Erro desconhecido'));
-                }
-                
-                $imagemCapa = '/uploads/cursos/' . $fileName;
-            } elseif (isset($_FILES['imagem_capa']) && $_FILES['imagem_capa']['error'] !== UPLOAD_ERR_NO_FILE) {
-                // Outro erro de upload
-                $errors = [
-                    UPLOAD_ERR_INI_SIZE => 'O arquivo excede o tamanho máximo permitido pelo servidor.',
-                    UPLOAD_ERR_FORM_SIZE => 'O arquivo excede o tamanho máximo do formulário.',
-                    UPLOAD_ERR_PARTIAL => 'O upload do arquivo foi feito parcialmente.',
-                    UPLOAD_ERR_NO_TMP_DIR => 'Diretório temporário ausente.',
-                    UPLOAD_ERR_CANT_WRITE => 'Falha ao gravar arquivo no disco.',
-                    UPLOAD_ERR_EXTENSION => 'Uma extensão do PHP parou o upload do arquivo.'
-                ];
-                $errorMsg = $errors[$_FILES['imagem_capa']['error']] ?? 'Erro desconhecido no upload.';
-                throw new Exception($errorMsg);
+            $novaImagem = processImageUpload('imagem_capa');
+            if ($novaImagem) {
+                deleteCoverImage($imagemCapa, suppressErrors: true);
+                $imagemCapa = $novaImagem;
             }
-            
+
             $db->execute(
                 "UPDATE cursos SET titulo = ?, descricao = ?, categoria_id = ?, imagem_capa = ? WHERE id = ?",
                 [$titulo, $descricao, $categoriaId, $imagemCapa, $cursoId]
             );
             $success = 'Curso atualizado com sucesso!';
-            
-            // Redirecionar para limpar POST
+
             header('Location: /admin/cursos.php?updated=1');
             exit;
         } catch (Exception $e) {
@@ -203,18 +151,13 @@ if (isset($_POST['edit_id']) && is_numeric($_POST['edit_id'])) {
     }
 }
 
-// Processar exclusão (POST com CSRF)
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id']) && is_numeric($_POST['delete_id'])) {
     CSRFHelper::validateRequest(false);
     $cursoId = (int)$_POST['delete_id'];
     try {
-        // Buscar e remover imagem se existir
         $curso = $db->fetchOne("SELECT imagem_capa FROM cursos WHERE id = ?", [$cursoId]);
-        if ($curso && $curso['imagem_capa']) {
-            $imagemPath = __DIR__ . '/..' . $curso['imagem_capa'];
-            if (file_exists($imagemPath)) {
-                unlink($imagemPath);
-            }
+        if ($curso) {
+            deleteCoverImage($curso['imagem_capa']);
         }
 
         $db->execute("UPDATE cursos SET ativo = FALSE WHERE id = ?", [$cursoId]);
@@ -224,13 +167,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     }
 }
 
-// Verificar se está editando
 $editingCurso = null;
 if (isset($_GET['edit']) && is_numeric($_GET['edit'])) {
     $editingCurso = $db->fetchOne("SELECT * FROM cursos WHERE id = ?", [(int)$_GET['edit']]);
 }
 
-// Mensagem de sucesso após redirect
 if (isset($_GET['updated'])) {
     $success = 'Curso atualizado com sucesso!';
 }

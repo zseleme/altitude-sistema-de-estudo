@@ -1,14 +1,10 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/csrf_helper.php';
 
 $error = '';
 
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validate CSRF token
     try {
         CSRFHelper::validateRequest(false);
 
