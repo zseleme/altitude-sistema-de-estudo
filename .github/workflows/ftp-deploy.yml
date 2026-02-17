@@ -7,40 +7,177 @@ on:
       - develop
 
 jobs:
-  deploy:
-    name: Deploy via FTP
+  # Primeiro job: validar sintaxe PHP
+  validate:
+    name: Validar PHP
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      - name: Definir pasta de destino
-        id: target
+      - name: Configurar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Validar sintaxe PHP
         run: |
+          echo "🔍 Validando arquivos PHP..."
+          errors=0
+          while IFS= read -r file; do
+            if ! php -l "$file" > /dev/null 2>&1; then
+              echo "❌ Erro em: $file"
+              php -l "$file"
+              errors=$((errors + 1))
+            fi
+          done < <(find . -name "*.php" -not -path "./vendor/*" -not -path "./node_modules/*")
+
+          if [ $errors -gt 0 ]; then
+            echo "❌ Encontrados $errors arquivos com erros de sintaxe!"
+            exit 1
+          fi
+          echo "✅ Todos os arquivos PHP estão válidos!"
+
+  # Segundo job: deploy para múltiplos servidores FTP em paralelo
+  deploy:
+    name: Deploy ${{ matrix.server_name }}
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Servidor 1
+          - server_id: "1"
+            server_name: "Servidor Principal"
+            enabled: true
+          # Servidor 2 (adicione mais servidores aqui)
+          - server_id: "2"
+            server_name: "Servidor Backup"
+            enabled: true
+          # Servidor 3
+          - server_id: "3"
+            server_name: "Servidor Terciário"
+            enabled: true
+
+    steps:
+      - name: Verificar se servidor está configurado
+        id: check
+        run: |
+          # Verificar se as credenciais existem para este servidor
+          case "${{ matrix.server_id }}" in
+            "1")
+              if [ -n "${{ secrets.FTP_SERVER_1 }}" ] && [ -n "${{ secrets.FTP_USERNAME_1 }}" ] && [ -n "${{ secrets.FTP_PASSWORD_1 }}" ]; then
+                echo "configured=true" >> $GITHUB_OUTPUT
+              else
+                echo "configured=false" >> $GITHUB_OUTPUT
+                echo "⚠️ Servidor ${{ matrix.server_name }} não configurado, pulando..."
+              fi
+              ;;
+            "2")
+              if [ -n "${{ secrets.FTP_SERVER_2 }}" ] && [ -n "${{ secrets.FTP_USERNAME_2 }}" ] && [ -n "${{ secrets.FTP_PASSWORD_2 }}" ]; then
+                echo "configured=true" >> $GITHUB_OUTPUT
+              else
+                echo "configured=false" >> $GITHUB_OUTPUT
+                echo "⚠️ Servidor ${{ matrix.server_name }} não configurado, pulando..."
+              fi
+              ;;
+            "3")
+              if [ -n "${{ secrets.FTP_SERVER_3 }}" ] && [ -n "${{ secrets.FTP_USERNAME_3 }}" ] && [ -n "${{ secrets.FTP_PASSWORD_3 }}" ]; then
+                echo "configured=true" >> $GITHUB_OUTPUT
+              else
+                echo "configured=false" >> $GITHUB_OUTPUT
+                echo "⚠️ Servidor ${{ matrix.server_name }} não configurado, pulando..."
+              fi
+              ;;
+          esac
+
+      - name: Checkout código
+        if: steps.check.outputs.configured == 'true'
+        uses: actions/checkout@v4
+
+      - name: Definir configuração do servidor
+        if: steps.check.outputs.configured == 'true'
+        id: config
+        run: |
+          # Definir variáveis com base no servidor e branch
+          SERVER_ID="${{ matrix.server_id }}"
+          BRANCH="${{ github.ref_name }}"
+
+          # Definir ambiente e cor
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "folder=/www/altitude.zaiden.eng.br" >> $GITHUB_OUTPUT
             echo "environment=Produção" >> $GITHUB_OUTPUT
             echo "color=green" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
-            echo "folder=/www/altitude-dev.zaiden.eng.br" >> $GITHUB_OUTPUT
+            echo "is_production=true" >> $GITHUB_OUTPUT
+          else
             echo "environment=Desenvolvimento" >> $GITHUB_OUTPUT
             echo "color=yellow" >> $GITHUB_OUTPUT
+            echo "is_production=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Obter path do GitHub Variables baseado no servidor e branch
+          # Formato esperado das variáveis:
+          # FTP_PATH_1_MAIN, FTP_PATH_1_DEV, FTP_URL_1_MAIN, FTP_URL_1_DEV
+          # FTP_PATH_2_MAIN, FTP_PATH_2_DEV, FTP_URL_2_MAIN, FTP_URL_2_DEV
+
+          if [ "$BRANCH" == "main" ]; then
+            case "$SERVER_ID" in
+              "1")
+                echo "folder=${{ vars.FTP_PATH_1_MAIN }}" >> $GITHUB_OUTPUT
+                echo "url=${{ vars.FTP_URL_1_MAIN }}" >> $GITHUB_OUTPUT
+                ;;
+              "2")
+                echo "folder=${{ vars.FTP_PATH_2_MAIN }}" >> $GITHUB_OUTPUT
+                echo "url=${{ vars.FTP_URL_2_MAIN }}" >> $GITHUB_OUTPUT
+                ;;
+              "3")
+                echo "folder=${{ vars.FTP_PATH_3_MAIN }}" >> $GITHUB_OUTPUT
+                echo "url=${{ vars.FTP_URL_3_MAIN }}" >> $GITHUB_OUTPUT
+                ;;
+            esac
+          else
+            case "$SERVER_ID" in
+              "1")
+                echo "folder=${{ vars.FTP_PATH_1_DEV }}" >> $GITHUB_OUTPUT
+                echo "url=${{ vars.FTP_URL_1_DEV }}" >> $GITHUB_OUTPUT
+                ;;
+              "2")
+                echo "folder=${{ vars.FTP_PATH_2_DEV }}" >> $GITHUB_OUTPUT
+                echo "url=${{ vars.FTP_URL_2_DEV }}" >> $GITHUB_OUTPUT
+                ;;
+              "3")
+                echo "folder=${{ vars.FTP_PATH_3_DEV }}" >> $GITHUB_OUTPUT
+                echo "url=${{ vars.FTP_URL_3_DEV }}" >> $GITHUB_OUTPUT
+                ;;
+            esac
+          fi
+
+      - name: Verificar se path está configurado
+        if: steps.check.outputs.configured == 'true'
+        id: check_path
+        run: |
+          if [ -z "${{ steps.config.outputs.folder }}" ]; then
+            echo "has_path=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Path não configurado para ${{ matrix.server_name }} no branch ${{ github.ref_name }}"
+          else
+            echo "has_path=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Exibir informações do deploy
+        if: steps.check.outputs.configured == 'true' && steps.check_path.outputs.has_path == 'true'
         run: |
           echo "🚀 ================================"
-          echo "🚀 Deploy para ${{ steps.target.outputs.environment }}"
+          echo "🚀 Deploy para ${{ steps.config.outputs.environment }}"
+          echo "🚀 Servidor: ${{ matrix.server_name }}"
           echo "🚀 ================================"
-          echo "📁 Pasta destino: ${{ steps.target.outputs.folder }}"
+          echo "📁 Pasta destino: ${{ steps.config.outputs.folder }}"
           echo "🌿 Branch: ${{ github.ref_name }}"
           echo "📝 Commit: ${{ github.sha }}"
           echo "👤 Autor: ${{ github.actor }}"
 
       - name: Gerar informações de deploy
+        if: steps.check.outputs.configured == 'true' && steps.check_path.outputs.has_path == 'true'
         run: |
-          # Criar version.json na raiz (será enviado ao servidor)
           cat > version.json <<EOF
           {
             "version": "$(date +%Y.%m.%d-%H%M%S)",
@@ -48,40 +185,26 @@ jobs:
             "branch": "${{ github.ref_name }}",
             "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "deployed_by": "${{ github.actor }}",
-            "environment": "${{ steps.target.outputs.environment }}"
+            "environment": "${{ steps.config.outputs.environment }}",
+            "server": "${{ matrix.server_name }}"
           }
-          EOF
-
-          # Criar pasta deploy-info para logs (não será enviada)
-          mkdir -p deploy-info
-          cp version.json deploy-info/version.json
-
-          cat > deploy-info/LAST_DEPLOY.txt <<EOF
-          ====================================
-          ÚLTIMO DEPLOY
-          ====================================
-          Ambiente: ${{ steps.target.outputs.environment }}
-          Branch: ${{ github.ref_name }}
-          Commit: ${{ github.sha }}
-          Data: $(date)
-          Por: ${{ github.actor }}
-          ====================================
           EOF
 
           echo "✅ Arquivo de versão criado"
           cat version.json
 
-      - name: Deploy via FTP
+      - name: Deploy via FTP - Servidor 1
+        if: steps.check.outputs.configured == 'true' && steps.check_path.outputs.has_path == 'true' && matrix.server_id == '1'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          server-dir: ${{ steps.target.outputs.folder }}/
+          server: ${{ secrets.FTP_SERVER_1 }}
+          username: ${{ secrets.FTP_USERNAME_1 }}
+          password: ${{ secrets.FTP_PASSWORD_1 }}
+          server-dir: ${{ steps.config.outputs.folder }}/
           dangerous-clean-slate: false
           dry-run: false
           log-level: verbose
-          state-name: .ftp-deploy-sync-state-${{ github.ref_name }}.json
+          state-name: .ftp-deploy-sync-state-${{ github.ref_name }}-server1.json
           exclude: |
             **/.git*
             **/.git*/**
@@ -91,6 +214,63 @@ jobs:
             **/config/estudos.db
             **/config/database.php
             **/config/openai.php
+            **/config/encryption.key
+            **/.github/**
+            **/tests/**
+            **/*.md
+            **/.gitignore
+            **/deploy-info/**
+
+      - name: Deploy via FTP - Servidor 2
+        if: steps.check.outputs.configured == 'true' && steps.check_path.outputs.has_path == 'true' && matrix.server_id == '2'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER_2 }}
+          username: ${{ secrets.FTP_USERNAME_2 }}
+          password: ${{ secrets.FTP_PASSWORD_2 }}
+          server-dir: ${{ steps.config.outputs.folder }}/
+          dangerous-clean-slate: false
+          dry-run: false
+          log-level: verbose
+          state-name: .ftp-deploy-sync-state-${{ github.ref_name }}-server2.json
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/vendor/**
+            **/.env
+            **/config/estudos.db
+            **/config/database.php
+            **/config/openai.php
+            **/config/encryption.key
+            **/.github/**
+            **/tests/**
+            **/*.md
+            **/.gitignore
+            **/deploy-info/**
+
+      - name: Deploy via FTP - Servidor 3
+        if: steps.check.outputs.configured == 'true' && steps.check_path.outputs.has_path == 'true' && matrix.server_id == '3'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER_3 }}
+          username: ${{ secrets.FTP_USERNAME_3 }}
+          password: ${{ secrets.FTP_PASSWORD_3 }}
+          server-dir: ${{ steps.config.outputs.folder }}/
+          dangerous-clean-slate: false
+          dry-run: false
+          log-level: verbose
+          state-name: .ftp-deploy-sync-state-${{ github.ref_name }}-server3.json
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/vendor/**
+            **/.env
+            **/config/estudos.db
+            **/config/database.php
+            **/config/openai.php
+            **/config/encryption.key
             **/.github/**
             **/tests/**
             **/*.md
@@ -98,31 +278,28 @@ jobs:
             **/deploy-info/**
 
       - name: Resumo do Deploy
-        if: success()
+        if: steps.check.outputs.configured == 'true' && steps.check_path.outputs.has_path == 'true' && success()
         run: |
           echo "✅ ================================"
           echo "✅ Deploy concluído com sucesso!"
           echo "✅ ================================"
           echo ""
           echo "📊 Detalhes:"
-          echo "  • Ambiente: ${{ steps.target.outputs.environment }}"
-          echo "  • Pasta: ${{ steps.target.outputs.folder }}"
+          echo "  • Servidor: ${{ matrix.server_name }}"
+          echo "  • Ambiente: ${{ steps.config.outputs.environment }}"
+          echo "  • Pasta: ${{ steps.config.outputs.folder }}"
           echo "  • Branch: ${{ github.ref_name }}"
           echo "  • Commit: $(git log -1 --pretty=format:'%h - %s')"
-          echo "  • Arquivos enviados: ✓"
           echo ""
-          echo "🌐 Acesse:"
-          if [ "${{ steps.target.outputs.environment }}" == "Produção" ]; then
-            echo "  • https://altitude.zaiden.eng.br/"
-          else
-            echo "  • https://altitude.dev.zaiden.eng.br/"
+          if [ -n "${{ steps.config.outputs.url }}" ]; then
+            echo "🌐 Acesse: ${{ steps.config.outputs.url }}"
           fi
 
       - name: Notificar erro
-        if: failure()
+        if: steps.check.outputs.configured == 'true' && steps.check_path.outputs.has_path == 'true' && failure()
         run: |
           echo "❌ ================================"
-          echo "❌ Deploy falhou!"
+          echo "❌ Deploy falhou para ${{ matrix.server_name }}!"
           echo "❌ ================================"
           echo ""
           echo "🔍 Verifique os logs acima para detalhes do erro."
@@ -131,4 +308,3 @@ jobs:
           echo "  • Credenciais FTP incorretas"
           echo "  • Servidor FTP offline"
           echo "  • Permissões de pasta incorretas"
-          echo "  • Erro na geração do version.json"
