@@ -11,11 +11,11 @@ $error = '';
  * Validate and process a course cover image upload.
  *
  * Performs MIME type detection via finfo, extension validation,
- * size check, and moves the uploaded file to the courses upload directory.
+ * size check, and returns the image as a base64 data URI.
  *
  * @param string $fieldName The $_FILES key for the upload field.
- * @return string|null The web-relative path to the uploaded image, or null if no file was uploaded.
- * @throws Exception On any validation or filesystem error.
+ * @return string|null Base64 data URI of the image, or null if no file was uploaded.
+ * @throws Exception On any validation error.
  */
 function processImageUpload(string $fieldName): ?string {
     if (!isset($_FILES[$fieldName]) || $_FILES[$fieldName]['error'] === UPLOAD_ERR_NO_FILE) {
@@ -36,7 +36,7 @@ function processImageUpload(string $fieldName): ?string {
 
     $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
     $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
-    $maxSize = 5 * 1024 * 1024; // 5 MB
+    $maxSize = 2 * 1024 * 1024; // 2 MB (reduzido para base64)
 
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $detectedType = $finfo->file($_FILES[$fieldName]['tmp_name']);
@@ -50,38 +50,36 @@ function processImageUpload(string $fieldName): ?string {
     }
 
     if ($_FILES[$fieldName]['size'] > $maxSize) {
-        throw new Exception('Imagem muito grande. Tamanho máximo: 5MB.');
+        throw new Exception('Imagem muito grande. Tamanho máximo: 2MB.');
     }
 
-    $uploadDir = __DIR__ . '/../uploads/cursos/';
-    if (!is_dir($uploadDir)) {
-        throw new Exception('Diretório de upload não existe.');
-    }
-    if (!is_writable($uploadDir)) {
-        throw new Exception('Diretório de upload sem permissão de escrita.');
+    // Ler conteúdo do arquivo e converter para base64
+    $imageData = file_get_contents($_FILES[$fieldName]['tmp_name']);
+    if ($imageData === false) {
+        throw new Exception('Erro ao ler arquivo de imagem.');
     }
 
-    $fileName = 'curso_' . time() . '_' . uniqid() . '.' . $extension;
-    $filePath = $uploadDir . $fileName;
-
-    if (!move_uploaded_file($_FILES[$fieldName]['tmp_name'], $filePath)) {
-        $uploadError = error_get_last();
-        throw new Exception('Erro ao fazer upload da imagem: ' . ($uploadError['message'] ?? 'Erro desconhecido'));
-    }
-
-    return '/uploads/cursos/' . $fileName;
+    // Retornar como data URI (funciona diretamente no src do img)
+    return 'data:' . $detectedType . ';base64,' . base64_encode($imageData);
 }
 
 /**
- * Delete a course cover image file from disk.
+ * Delete a course cover image file from disk (only for legacy file paths).
  *
- * @param string|null $imagemCapa The web-relative path to the image.
- * @param bool $suppressErrors If true, uses @ to suppress unlink errors (for old image replacement).
+ * Base64 data URIs are stored in the database and don't need file deletion.
+ *
+ * @param string|null $imagemCapa The image (path or base64 data URI).
+ * @param bool $suppressErrors If true, uses @ to suppress unlink errors.
  */
 function deleteCoverImage(?string $imagemCapa, bool $suppressErrors = false): void {
     if (!$imagemCapa) {
         return;
     }
+    // Ignorar se for base64 (não há arquivo para deletar)
+    if (str_starts_with($imagemCapa, 'data:')) {
+        return;
+    }
+    // Deletar apenas arquivos físicos (imagens antigas)
     $fullPath = __DIR__ . '/..' . $imagemCapa;
     if (file_exists($fullPath)) {
         $suppressErrors ? @unlink($fullPath) : unlink($fullPath);
