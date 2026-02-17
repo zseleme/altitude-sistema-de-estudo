@@ -1,162 +1,204 @@
-# 🚀 Deploy FTP Automático
+# Deploy FTP Automático
 
 ## Como Funciona
 
-O sistema está configurado para fazer deploy automático via FTP:
+O sistema está configurado para fazer deploy automático via FTP com suporte a **múltiplos servidores** em paralelo.
 
-### 📁 Ambientes
+### Ambientes
 
-| Branch | Pasta FTP | Ambiente |
-|--------|-----------|----------|
-| `main` | `/public_html/producao` | **Produção** |
-| `develop` | `/public_html/desenvolvimento` | **Desenvolvimento** |
+| Branch | Ambiente | Descrição |
+|--------|----------|-----------|
+| `main` | **Produção** | Deploy para servidores de produção |
+| `develop` | **Desenvolvimento** | Deploy para servidores de staging/dev |
 
-### 🔄 Fluxo Automático
+### Fluxo Automático
 
 ```
-Push na main → GitHub Action → Validação → Deploy FTP → /public_html/producao
-Push na develop → GitHub Action → Validação → Deploy FTP → /public_html/desenvolvimento
+Push → Validação PHP → Deploy Paralelo → Múltiplos Servidores
 ```
 
-## ⚙️ Configuração
+1. **Validação PHP** - Verifica sintaxe de todos os arquivos antes do deploy
+2. **Deploy Paralelo** - Envia para todos os servidores configurados simultaneamente
+3. **Servidores Opcionais** - Servidores não configurados são ignorados automaticamente
 
-### 1. Secrets Configurados ✅
+## Configuração no GitHub
 
-Você já configurou os secrets necessários:
+### 1. Secrets (Credenciais FTP)
 
-- ✅ `FTP_SERVER` - Endereço do servidor FTP
-- ✅ `FTP_USERNAME` - Usuário FTP
-- ✅ `FTP_PASSWORD` - Senha FTP
+Vá em **Settings → Secrets and variables → Actions → Secrets**
 
-### 2. Ajustar Pastas de Destino
+#### Servidor 1 (Principal)
+| Secret | Descrição | Exemplo |
+|--------|-----------|---------|
+| `FTP_SERVER_1` | Host do servidor FTP | `ftp.meusite.com` |
+| `FTP_USERNAME_1` | Usuário FTP | `deploy@meusite.com` |
+| `FTP_PASSWORD_1` | Senha FTP | `********` |
 
-Se suas pastas FTP forem diferentes, edite o arquivo `.github/workflows/ftp-deploy.yml`:
+#### Servidor 2 (Opcional)
+| Secret | Descrição | Exemplo |
+|--------|-----------|---------|
+| `FTP_SERVER_2` | Host do servidor FTP | `ftp.outrosite.com` |
+| `FTP_USERNAME_2` | Usuário FTP | `deploy@outrosite.com` |
+| `FTP_PASSWORD_2` | Senha FTP | `********` |
 
-```yaml
-# Linha ~34
-if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-  echo "folder=/public_html/producao" >> $GITHUB_OUTPUT  # ← Altere aqui
-  # ...
-elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
-  echo "folder=/public_html/desenvolvimento" >> $GITHUB_OUTPUT  # ← Altere aqui
+#### Servidor 3 (Opcional)
+| Secret | Descrição | Exemplo |
+|--------|-----------|---------|
+| `FTP_SERVER_3` | Host do servidor FTP | `ftp.terceiro.com` |
+| `FTP_USERNAME_3` | Usuário FTP | `deploy@terceiro.com` |
+| `FTP_PASSWORD_3` | Senha FTP | `********` |
+
+### 2. Variables (Paths e URLs)
+
+Vá em **Settings → Secrets and variables → Actions → Variables**
+
+#### Servidor 1
+| Variable | Descrição | Exemplo |
+|----------|-----------|---------|
+| `FTP_PATH_1_MAIN` | Path para produção | `/www/meusite.com` |
+| `FTP_PATH_1_DEV` | Path para desenvolvimento | `/www/dev.meusite.com` |
+| `FTP_URL_1_MAIN` | URL de produção | `https://meusite.com` |
+| `FTP_URL_1_DEV` | URL de desenvolvimento | `https://dev.meusite.com` |
+
+#### Servidor 2 (se configurado)
+| Variable | Descrição | Exemplo |
+|----------|-----------|---------|
+| `FTP_PATH_2_MAIN` | Path para produção | `/www/outrosite.com` |
+| `FTP_PATH_2_DEV` | Path para desenvolvimento | `/www/dev.outrosite.com` |
+| `FTP_URL_2_MAIN` | URL de produção | `https://outrosite.com` |
+| `FTP_URL_2_DEV` | URL de desenvolvimento | `https://dev.outrosite.com` |
+
+#### Servidor 3 (se configurado)
+| Variable | Descrição | Exemplo |
+|----------|-----------|---------|
+| `FTP_PATH_3_MAIN` | Path para produção | `/www/terceiro.com` |
+| `FTP_PATH_3_DEV` | Path para desenvolvimento | `/www/dev.terceiro.com` |
+| `FTP_URL_3_MAIN` | URL de produção | `https://terceiro.com` |
+| `FTP_URL_3_DEV` | URL de desenvolvimento | `https://dev.terceiro.com` |
+
+## Exemplo de Configuração
+
+### Cenário: 2 Servidores
+
+**Servidor 1** - Site principal (zaiden.eng.br)
+**Servidor 2** - Site secundário (seleme.pt)
+
+#### Secrets:
+```
+FTP_SERVER_1=ftp.zaiden.eng.br
+FTP_USERNAME_1=deploy@zaiden.eng.br
+FTP_PASSWORD_1=senha123
+
+FTP_SERVER_2=ftp.seleme.pt
+FTP_USERNAME_2=deploy@seleme.pt
+FTP_PASSWORD_2=senha456
 ```
 
-### 3. Ajustar URLs (opcional)
+#### Variables:
+```
+FTP_PATH_1_MAIN=/www/altitude.zaiden.eng.br
+FTP_PATH_1_DEV=/www/altitude-dev.zaiden.eng.br
+FTP_URL_1_MAIN=https://altitude.zaiden.eng.br
+FTP_URL_1_DEV=https://altitude-dev.zaiden.eng.br
 
-No final do arquivo, altere as URLs:
-
-```yaml
-# Linha ~120
-echo "🌐 Acesse:"
-echo "  • Produção: https://seu-site.com"  # ← Seu domínio
-echo "  • Desenvolvimento: https://dev.seu-site.com"  # ← Seu subdomínio
+FTP_PATH_2_MAIN=/www/seleme.pt
+FTP_PATH_2_DEV=/www/dev.seleme.pt
+FTP_URL_2_MAIN=https://seleme.pt
+FTP_URL_2_DEV=https://dev.seleme.pt
 ```
 
-## 📝 Como Usar
+## Como Usar
 
 ### Deploy para Produção
 
 ```bash
-# Trabalhe na sua branch
-git checkout -b feature/nova-funcionalidade
-
-# Faça suas mudanças
-git add .
-git commit -m "Adiciona nova funcionalidade"
-
-# Merge na main (via PR ou direto)
 git checkout main
-git merge feature/nova-funcionalidade
+git merge develop
 git push origin main
 ```
 
-**Resultado:** Deploy automático para `/public_html/producao` 🚀
+**Resultado:** Deploy automático para todos os servidores configurados (paths `*_MAIN`)
 
 ### Deploy para Desenvolvimento
 
 ```bash
-# Merge na develop
 git checkout develop
-git merge feature/nova-funcionalidade
+git add .
+git commit -m "Nova feature"
 git push origin develop
 ```
 
-**Resultado:** Deploy automático para `/public_html/desenvolvimento` 🚀
+**Resultado:** Deploy automático para todos os servidores configurados (paths `*_DEV`)
 
-## 🔍 Verificar Status do Deploy
+## Verificar Status do Deploy
 
 1. Vá em **Actions** no GitHub
 2. Procure pelo workflow **"Deploy FTP Automático"**
-3. Clique no último execution
-4. Veja os logs de cada etapa
+3. Clique na execução mais recente
+4. Veja os jobs para cada servidor (executam em paralelo)
 
 ### Status Possíveis
 
 - ✅ **Success** - Deploy concluído com sucesso
 - ❌ **Failure** - Deploy falhou (veja os logs)
+- ⏭️ **Skipped** - Servidor não configurado (ignorado)
 - 🟡 **In Progress** - Deploy em andamento
-- ⏸️ **Cancelled** - Deploy cancelado
 
-## 📂 Arquivos Enviados
+## Arquivos Excluídos do Deploy
 
-### ✅ O que É Enviado
-
-Todos os arquivos do projeto, exceto:
-
-### ❌ O que NÃO É Enviado
+Os seguintes arquivos **NÃO são enviados**:
 
 - `.git/` - Histórico do Git
+- `.github/` - Workflows e configurações
 - `node_modules/` - Dependências Node
-- `vendor/` - Dependências PHP
+- `vendor/` - Dependências PHP (Composer)
 - `.env` - Variáveis de ambiente
 - `config/estudos.db` - Banco SQLite local
 - `config/database.php` - Configuração do banco
 - `config/openai.php` - Chaves da API
-- `.github/` - Workflows
-- `tests/` - Testes
-- `*.md` - Arquivos de documentação
+- `config/encryption.key` - Chave de criptografia
+- `tests/` - Arquivos de teste
+- `*.md` - Documentação
 
-## 📊 Arquivo de Versão
+## Arquivo de Versão
 
-Após cada deploy, são criados no servidor:
+Após cada deploy, é criado um `version.json` no servidor:
 
-### `version.json`
 ```json
 {
-  "version": "2024.12.04-153045",
+  "version": "2026.02.16-143045",
   "commit": "abc123def456",
   "branch": "main",
-  "deployed_at": "2024-12-04T15:30:45Z",
-  "deployed_by": "seu-usuario",
-  "environment": "Produção"
+  "deployed_at": "2026-02-16T14:30:45Z",
+  "deployed_by": "usuario",
+  "environment": "Produção",
+  "server": "Servidor Principal"
 }
 ```
 
-### `LAST_DEPLOY.txt`
-```
-====================================
-ÚLTIMO DEPLOY
-====================================
-Ambiente: Produção
-Branch: main
-Commit: abc123def456
-Data: Wed Dec 4 15:30:45 UTC 2024
-Por: seu-usuario
-====================================
-```
+## Troubleshooting
 
-## 🛠️ Troubleshooting
+### Erro: "Servidor não configurado"
+
+**Causa:** Secrets FTP não estão configurados para este servidor.
+
+**Solução:** Configure `FTP_SERVER_X`, `FTP_USERNAME_X` e `FTP_PASSWORD_X` nos secrets.
+
+### Erro: "Path não configurado"
+
+**Causa:** Variables de path não estão configurados para este branch.
+
+**Solução:** Configure `FTP_PATH_X_MAIN` ou `FTP_PATH_X_DEV` nas variables.
 
 ### Erro: "Syntax check failed"
 
-**Causa:** Há erros de sintaxe no código PHP
+**Causa:** Há erros de sintaxe no código PHP.
 
 **Solução:**
 ```bash
 # Teste localmente
-find . -name "*.php" -exec php -l {} \;
-
-# Corrija os erros e tente novamente
+find . -name "*.php" -not -path "./vendor/*" -exec php -l {} \;
+# Corrija os erros e faça novo push
 ```
 
 ### Erro: "FTP connection failed"
@@ -164,170 +206,73 @@ find . -name "*.php" -exec php -l {} \;
 **Causas possíveis:**
 - Servidor FTP offline
 - Credenciais incorretas
-- Firewall bloqueando
+- Firewall bloqueando conexão
 
 **Soluções:**
-1. Teste credenciais manualmente:
-   ```bash
-   ftp seu-servidor.com
-   # Digite usuário e senha
-   ```
-
-2. Verifique os secrets no GitHub:
-   - Settings → Secrets → Actions
-   - Confirme FTP_SERVER, FTP_USERNAME, FTP_PASSWORD
-
-### Erro: "Permission denied"
-
-**Causa:** Sem permissão para escrever na pasta
-
-**Solução:**
-- Verifique permissões da pasta no servidor
-- Certifique-se que o usuário FTP tem acesso de escrita
+1. Teste credenciais manualmente via FTP client
+2. Verifique os secrets no GitHub
+3. Confirme que o servidor aceita conexões FTP
 
 ### Deploy não acontece
 
 **Verifique:**
 1. Branch está correta? (main ou develop)
 2. Push foi feito? (`git push origin main`)
-3. Action está habilitada? (Actions → Workflows)
+3. Actions estão habilitadas? (Actions tab)
+4. Há secrets configurados? (Settings → Secrets)
 
-## 🔒 Segurança
+## Segurança
 
-### ✅ Boas Práticas Implementadas
+### Boas Práticas Implementadas
 
-- Arquivos sensíveis são excluídos do deploy
-- Secrets são criptografados no GitHub
-- Validação de sintaxe antes do deploy
+- Validação de sintaxe PHP antes do deploy
+- Arquivos sensíveis são excluídos automaticamente
+- Secrets são criptografados pelo GitHub
 - Logs não expõem senhas
-- Chaves de API criptografadas com AES-256-CBC
+- Deploy paralelo com `fail-fast: false` (falha em um servidor não afeta os outros)
 
-### 🔑 Configuração de Criptografia (OBRIGATÓRIO para Produção)
-
-O sistema utiliza criptografia AES-256-CBC para proteger chaves de API (OpenAI, Gemini, Groq, YouTube). Para produção, você **DEVE** configurar uma chave de criptografia forte:
-
-#### Opção 1: Variável de Ambiente (Recomendado)
-
-Adicione no arquivo `.htaccess` ou configuração do servidor:
-
-```apache
-# .htaccess (Apache)
-SetEnv ALTITUDE_ENCRYPTION_KEY "sua-chave-aleatoria-de-32-bytes-aqui-min-32-caracteres"
-```
-
-```nginx
-# nginx.conf
-fastcgi_param ALTITUDE_ENCRYPTION_KEY "sua-chave-aleatoria-de-32-bytes-aqui-min-32-caracteres";
-```
-
-**Gerar chave segura:**
-```bash
-# Linux/Mac
-openssl rand -base64 32
-
-# PHP
-php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
-```
-
-#### Opção 2: Arquivo de Configuração
-
-Se não puder usar variáveis de ambiente, edite `includes/encryption_helper.php` após o deploy:
-
-```php
-// Linha ~19
-private static function getEncryptionKey() {
-    // Substitua pela sua chave única gerada
-    return 'SUA_CHAVE_UNICA_DE_PELO_MENOS_32_CARACTERES_AQUI';
-}
-```
-
-**⚠️ IMPORTANTE:**
-- Use uma chave **diferente** da chave do código-fonte
-- Mínimo 32 caracteres
-- Caracteres aleatórios (letras, números, símbolos)
-- **Nunca** commite a chave no Git
-- Guarde a chave em local seguro (ex: gerenciador de senhas)
-- Se perder a chave, **todas as API keys criptografadas serão perdidas**
-
-#### Migração de Chaves Existentes
-
-Se você já tem API keys configuradas antes da criptografia, execute após configurar a chave:
-
-```bash
-# Acesse via navegador (somente admin)
-https://seu-site.com/admin/migrate_encrypt_keys.php
-```
-
-Esse script:
-- Detecta chaves não criptografadas
-- Criptografa automaticamente
-- Exibe relatório de migração
-- **Execute apenas uma vez**
-
-### ⚠️ Importante
+### Importante
 
 1. **Nunca commite:**
-   - Senhas
-   - Chaves de API
+   - Senhas ou chaves de API
    - Arquivos `.env`
-   - Banco de dados
-   - **Chave de criptografia**
+   - `config/database.php`
+   - `config/encryption.key`
 
-2. **No servidor, configure:**
-   - Crie `config/database.php` manualmente
-   - Configure a chave de criptografia (variável de ambiente ou arquivo)
-   - Execute `admin/migrate_encrypt_keys.php` para migrar chaves existentes
-   - Configure permissões corretas (755 para pastas, 644 para arquivos)
+2. **No servidor, configure manualmente:**
+   - `config/database.php` com credenciais do banco
+   - Variável de ambiente `ALTITUDE_ENCRYPTION_KEY`
+   - Permissões de pastas (755 para pastas, 644 para arquivos)
 
 3. **Após primeiro deploy:**
-   - Acesse o site e siga a instalação automática
-   - Login: admin@teste.com / admin123
-   - **Altere a senha imediatamente** (obrigatório na primeira vez)
-   - Configure a chave de criptografia
-   - Execute migração de chaves se necessário
+   - Acesse o site para auto-instalação
+   - Login padrão: `admin@teste.com` / `admin123`
+   - **Altere a senha imediatamente**
 
-## 📋 Checklist Pós-Deploy
+## Checklist Pós-Deploy
 
-Após cada deploy em produção:
+- [ ] Site está online e acessível
+- [ ] Login funciona corretamente
+- [ ] Banco de dados foi criado (auto-install)
+- [ ] Funcionalidades críticas funcionam
+- [ ] `version.json` foi atualizado no servidor
 
-- [ ] Acessar o site e verificar se está online
-- [ ] Testar login
-- [ ] Verificar se banco de dados foi criado
-- [ ] Testar funcionalidades críticas
-- [ ] Verificar logs de erro do servidor
-- [ ] Confirmar que arquivos foram atualizados (ver `LAST_DEPLOY.txt`)
+## Adicionar Novo Servidor
 
-## 🚀 Próximos Passos
+Para adicionar um 4º servidor ou mais:
 
-### Melhorias Possíveis
-
-1. **Adicionar stage de staging:**
+1. Edite `.github/workflows/ftp-deploy.yml`
+2. Na seção `matrix.include`, adicione:
    ```yaml
-   - staging  # Branch staging
+   - server_id: "4"
+     server_name: "Servidor Quaternário"
+     enabled: true
    ```
-
-2. **Notificações:**
-   - Discord
-   - Slack
-   - Email
-
-3. **Rollback automático:**
-   - Detectar erros 500
-   - Reverter para versão anterior
-
-4. **Testes automatizados:**
-   - Executar antes do deploy
-   - Cancelar deploy se falhar
-
-## 📞 Suporte
-
-**Problemas com deploy?**
-
-1. Veja os logs em Actions
-2. Confira este guia
-3. Teste credenciais manualmente
-4. Abra uma issue se necessário
+3. Adicione o case no step "Verificar se servidor está configurado"
+4. Adicione o case no step "Definir configuração do servidor"
+5. Adicione um novo step "Deploy via FTP - Servidor 4"
+6. Configure os secrets e variables no GitHub
 
 ---
 
-**Status:** ✅ Deploy automático configurado e funcionando!
+**Status:** ✅ Deploy automático multi-servidor configurado!
